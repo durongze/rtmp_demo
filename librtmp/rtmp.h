@@ -283,6 +283,7 @@ extern "C"
     RTMP_LNK Link;
   } RTMP;
 
+  void RTMP_Show(RTMP rtmp);
   int RTMP_ParseURL(const char *url, int *protocol, AVal *host,
 		     unsigned int *port, AVal *playpath, AVal *app);
 

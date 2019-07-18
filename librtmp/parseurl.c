@@ -30,6 +30,54 @@
 #include "rtmp_sys.h"
 #include "log.h"
 
+void RTMPChunk_Show(RTMPChunk chunk)
+{
+	RTMP_Log(RTMP_LOGDEBUG, "c_headerSize:%d\n", chunk.c_headerSize);
+	RTMP_Log(RTMP_LOGDEBUG, "c_chunkSize:%d\n", chunk.c_chunkSize);
+}
+
+void RTMP_Show(RTMP rtmp)
+{
+	RTMP_Log(RTMP_LOGDEBUG, "m_inChunkSize:%d\n", rtmp.m_inChunkSize);
+	RTMP_Log(RTMP_LOGDEBUG, "m_outChunkSize:%d\n", rtmp.m_outChunkSize);
+	RTMP_Log(RTMP_LOGDEBUG, "m_nBWCheckCounter:%d\n", rtmp.m_nBWCheckCounter);
+	RTMP_Log(RTMP_LOGDEBUG, "m_nBytesIn:%d\n", rtmp.m_nBytesIn);
+	RTMP_Log(RTMP_LOGDEBUG, "m_nBytesInSent:%d\n", rtmp.m_nBytesInSent);
+	RTMP_Log(RTMP_LOGDEBUG, "m_nBufferMS:%d\n", rtmp.m_nBufferMS);
+	RTMP_Log(RTMP_LOGDEBUG, "m_stream_id:%d\n", rtmp.m_stream_id);		/* returned in _result from createStream */
+	RTMP_Log(RTMP_LOGDEBUG, "m_mediaChannel:%d\n", rtmp.m_mediaChannel);
+	RTMP_Log(RTMP_LOGDEBUG, "m_mediaStamp:%d\n", rtmp.m_mediaStamp);
+	RTMP_Log(RTMP_LOGDEBUG, "m_pauseStamp:%d\n", rtmp.m_pauseStamp);
+	RTMP_Log(RTMP_LOGDEBUG, "m_pausing:%d\n", rtmp.m_pausing);
+	RTMP_Log(RTMP_LOGDEBUG, "m_nServerBW:%d\n", rtmp.m_nServerBW);
+	RTMP_Log(RTMP_LOGDEBUG, "m_nClientBW:%d\n", rtmp.m_nClientBW);
+	RTMP_Log(RTMP_LOGDEBUG, "m_nClientBW2:%d\n", rtmp.m_nClientBW2);
+	RTMP_Log(RTMP_LOGDEBUG, "m_bPlaying:%d\n", rtmp.m_bPlaying);
+	RTMP_Log(RTMP_LOGDEBUG, "m_bSendEncoding:%d\n", rtmp.m_bSendEncoding);
+	RTMP_Log(RTMP_LOGDEBUG, "m_bSendCounter:%d\n", rtmp.m_bSendCounter);
+
+	RTMP_Log(RTMP_LOGDEBUG, "m_numInvokes:%d\n", rtmp.m_numInvokes);
+	RTMP_Log(RTMP_LOGDEBUG, "m_numCalls:%d\n", rtmp.m_numCalls);
+	if (rtmp.m_methodCalls)
+	RTMP_Log(RTMP_LOGDEBUG, "name:%s\n", rtmp.m_methodCalls->name.av_val);	/* remote method calls queue */
+
+	if (rtmp.m_vecChannelsIn && *rtmp.m_vecChannelsIn)
+		RTMPPacket_Dump(*rtmp.m_vecChannelsIn);
+	if (rtmp.m_vecChannelsOut && *rtmp.m_vecChannelsOut)
+		RTMPPacket_Dump(*rtmp.m_vecChannelsOut);
+	if (rtmp.m_channelTimestamp)
+	RTMP_Log(RTMP_LOGDEBUG, "m_channelTimestamp:%d\n", *rtmp.m_channelTimestamp);	/* abs timestamp of last packet */
+
+	RTMP_Log(RTMP_LOGDEBUG, "m_fAudioCodecs:%f\n", rtmp.m_fAudioCodecs);	/* audioCodecs for the connect packet */
+	RTMP_Log(RTMP_LOGDEBUG, "m_fVideoCodecs:%f\n", rtmp.m_fVideoCodecs);	/* videoCodecs for the connect packet */
+	RTMP_Log(RTMP_LOGDEBUG, "m_fEncoding:%f\n", rtmp.m_fEncoding);		/* AMF0 or AMF3 */
+	RTMP_Log(RTMP_LOGDEBUG, "m_fDuration:%f\n", rtmp.m_fDuration);		/* duration of stream in seconds */
+	RTMP_Log(RTMP_LOGDEBUG, "m_msgCounter:%d\n", rtmp.m_msgCounter);		/* RTMPT stuff */
+	RTMP_Log(RTMP_LOGDEBUG, "m_polling:%d\n", rtmp.m_polling);
+	RTMP_Log(RTMP_LOGDEBUG, "m_resplen:%d\n", rtmp.m_resplen);
+	RTMP_Log(RTMP_LOGDEBUG, "m_unackd:%d\n", rtmp.m_unackd);
+}
+
 int RTMP_ParseURL(const char *url, int *protocol, AVal *host, unsigned int *port,
 	AVal *playpath, AVal *app)
 {

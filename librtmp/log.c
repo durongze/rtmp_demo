@@ -183,6 +183,8 @@ void RTMP_LogPrintf(const char *format, ...)
 {
 	char str[MAX_PRINT_LEN]="";
 	int len;
+	memset(str, 0, sizeof(str));
+	str[len - 1] = '\n';
 	va_list args;
 	va_start(args, format);
 	len = vsnprintf(str, MAX_PRINT_LEN-1, format, args);

@@ -27,16 +27,6 @@ FILE *netstackdump = NULL;
 FILE *netstackdump_read = NULL;
 #endif
 
-int strncasecmp(const char* src, const char* dst, unsigned int size)
-{
-	return strncmp(src, dst, size);
-}
-
-int strcasecmp(const char* src, const char* dst)
-{
-	return strcmp(src, dst);
-}
-
 #ifdef WIN32
 #define InitSockets()	{\
 	WORD version;			\
@@ -91,19 +81,6 @@ int ReadTime(uint32_t *utime, FILE*fp) {
 		return 0;
 	*utime = HTONTIME(*utime);
 	return 1;
-}
-
-int DYZInitSockets()
-{
-	WORD version;
-	WSADATA wsaData;
-	version = MAKEWORD(2, 2);
-	return (WSAStartup(version, &wsaData) == 0);
-}
-
-void DYZCleanupSockets()
-{
-	WSACleanup();
 }
 
 //Publish using RTMP_SendPacket()

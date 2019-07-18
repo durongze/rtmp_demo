@@ -245,6 +245,30 @@ int getopt(int argc, char** argv, char* optstr)
 	return c;
 }
 
+int strncasecmp(const char* src, const char* dst, unsigned int size)
+{
+	return strncmp(src, dst, size);
+}
+
+int strcasecmp(const char* src, const char* dst)
+{
+	return strcmp(src, dst);
+}
+
+long ftello64(FILE* stream)
+{
+	return ftell(stream);
+}
+
+long fseeko64(FILE* Stream, long  Offset, int Origin)
+{
+	return fseek(Stream, Offset, Origin);
+}
+
+long getopt_long(int argc, char** argv, char* optstr)
+{
+	return getopt(argc, argv, optstr);
+}
 
 /* vim:ts=3
 */

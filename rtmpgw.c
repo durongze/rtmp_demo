@@ -39,7 +39,7 @@
 #define RD_INCOMPLETE		2
 
 #define PACKET_SIZE 1024*1024
-#define RTMPDUMP_VERSION "v2.3"
+
 #ifdef WIN32
 #define InitSockets()	{\
         WORD version;			\
@@ -61,12 +61,7 @@ enum
   STREAMING_STOPPING,
   STREAMING_STOPPED
 };
-struct option {
-	const char *name;
-	int has_arg;
-	int *flag;
-	int val;
-};
+
 typedef struct
 {
   int socket;
@@ -90,6 +85,7 @@ typedef struct
   uint32_t bufferTime;
 
   char *rtmpurl;
+  AVal fullUrl;
   AVal playpath;
   AVal swfUrl;
   AVal tcUrl;
@@ -100,6 +96,7 @@ typedef struct
   AVal flashVer;
   AVal token;
   AVal subscribepath;
+  AVal usherToken; //Justin.tv auth token
   AVal sockshost;
   AMFObject extras;
   int edepth;
@@ -473,14 +470,14 @@ void processTCPrequest(STREAMING_SERVER * server,	// server socket and state (ou
     }
 
   // do necessary checks right here to make sure the combined request of default values and GET parameters is correct
-  if (!req.hostname.av_len)
+  if (!req.hostname.av_len && !req.fullUrl.av_len)
     {
       RTMP_Log(RTMP_LOGERROR,
 	  "You must specify a hostname (--host) or url (-r \"rtmp://host[:port]/playpath\") containing a hostname");
       status = "400 Missing Hostname";
       goto filenotfound;
     }
-  if (req.playpath.av_len == 0)
+  if (req.playpath.av_len == 0 && !req.fullUrl.av_len)
     {
       RTMP_Log(RTMP_LOGERROR,
 	  "You must specify a playpath (--playpath) or url (-r \"rtmp://host[:port]/playpath\") containing a playpath");
@@ -488,19 +485,19 @@ void processTCPrequest(STREAMING_SERVER * server,	// server socket and state (ou
       goto filenotfound;;
     }
 
-  if (req.protocol == RTMP_PROTOCOL_UNDEFINED)
+  if (req.protocol == RTMP_PROTOCOL_UNDEFINED && !req.fullUrl.av_len)
     {
       RTMP_Log(RTMP_LOGWARNING,
 	  "You haven't specified a protocol (--protocol) or rtmp url (-r), using default protocol RTMP");
       req.protocol = RTMP_PROTOCOL_RTMP;
     }
-  if (req.rtmpport == -1)
+  if (req.rtmpport == -1 && !req.fullUrl.av_len)
     {
       RTMP_Log(RTMP_LOGWARNING,
 	  "You haven't specified a port (--port) or rtmp url (-r), using default port");
       req.rtmpport = 0;
     }
-  if (req.rtmpport == 0)
+  if (req.rtmpport == 0 && !req.fullUrl.av_len)
     {
       if (req.protocol & RTMP_FEATURE_SSL)
 	req.rtmpport = 443;
@@ -556,9 +553,20 @@ void processTCPrequest(STREAMING_SERVER * server,	// server socket and state (ou
   RTMP_Log(RTMP_LOGDEBUG, "Setting buffer time to: %dms", req.bufferTime);
   RTMP_Init(&rtmp);
   RTMP_SetBufferMS(&rtmp, req.bufferTime);
-  RTMP_SetupStream(&rtmp, req.protocol, &req.hostname, req.rtmpport, &req.sockshost,
-		   &req.playpath, &req.tcUrl, &req.swfUrl, &req.pageUrl, &req.app, &req.auth, &req.swfHash, req.swfSize, &req.flashVer, &req.subscribepath, dSeek, req.dStopOffset,
-		   req.bLiveStream, req.timeout);
+  if (!req.fullUrl.av_len)
+    {
+      RTMP_SetupStream(&rtmp, req.protocol, &req.hostname, req.rtmpport, &req.sockshost,
+		       &req.playpath, &req.tcUrl, &req.swfUrl, &req.pageUrl, &req.app, &req.auth, &req.swfHash, req.swfSize, &req.flashVer, &req.subscribepath, &req.usherToken, dSeek, req.dStopOffset,
+		       req.bLiveStream, req.timeout);
+    }
+  else
+    {
+      if (RTMP_SetupURL(&rtmp, req.fullUrl.av_val) == FALSE)
+        {
+          RTMP_Log(RTMP_LOGERROR, "Couldn't parse URL: %s", req.fullUrl.av_val);
+          return;
+        }
+    }
   /* backward compatibility, we always sent this as true before */
   if (req.auth.av_len)
     rtmp.Link.lFlags |= RTMP_LF_AUTH;
@@ -567,7 +575,7 @@ void processTCPrequest(STREAMING_SERVER * server,	// server socket and state (ou
   rtmp.Link.token = req.token;
   rtmp.m_read.timestamp = dSeek;
 
-  RTMP_LogPrintf("Connecting ... port: %d, app: %s\n", req.rtmpport, req.app);
+  RTMP_LogPrintf("Connecting ... port: %d, app: %s\n", req.rtmpport, req.app.av_val);
   if (!RTMP_Connect(&rtmp, NULL))
     {
       RTMP_LogPrintf("%s, failed to connect!\n", __FUNCTION__);
@@ -742,7 +750,7 @@ stopStreaming(STREAMING_SERVER * server)
 
       if (closesocket(server->socket))
 	RTMP_Log(RTMP_LOGERROR, "%s: Failed to close listening socket, error %d",
-	    GetSockError());
+	    __FUNCTION__, GetSockError());
 
       server->state = STREAMING_STOPPED;
     }
@@ -786,209 +794,189 @@ int hex2bin(char *str, char **hex)
 int
 ParseOption(char opt, char *arg, RTMP_REQUEST * req)
 {
-  switch (opt)
-    {
+	switch (opt)
+	{
 #ifdef CRYPTO
-    case 'w':
-      {
-	int res = hex2bin(arg, &req->swfHash.av_val);
-	if (!res || res != RTMP_SWF_HASHLEN)
-	  {
-	    req->swfHash.av_val = NULL;
-	    RTMP_Log(RTMP_LOGWARNING,
-		"Couldn't parse swf hash hex string, not hexstring or not %d bytes, ignoring!", RTMP_SWF_HASHLEN);
-	  }
-	req->swfHash.av_len = RTMP_SWF_HASHLEN;
+	case 'w':
+	{
+		int res = hex2bin(arg, &req->swfHash.av_val);
+		if (!res || res != RTMP_SWF_HASHLEN)
+		{
+			req->swfHash.av_val = NULL;
+			RTMP_Log(RTMP_LOGWARNING,
+				"Couldn't parse swf hash hex string, not hexstring or not %d bytes, ignoring!", RTMP_SWF_HASHLEN);
+		}
+		req->swfHash.av_len = RTMP_SWF_HASHLEN;
+		break;
+	}
+	case 'x':
+	{
+		int size = atoi(arg);
+		if (size <= 0)
+		{
+			RTMP_Log(RTMP_LOGERROR, "SWF Size must be at least 1, ignoring\n");
+		}
+		else
+		{
+			req->swfSize = size;
+		}
+		break;
+	}
+	case 'W':
+	{
+		STR2AVAL(req->swfUrl, arg);
+		req->swfVfy = 1;
+	}
 	break;
-      }
-    case 'x':
-      {
-	int size = atoi(arg);
-	if (size <= 0)
-	  {
-	    RTMP_Log(RTMP_LOGERROR, "SWF Size must be at least 1, ignoring\n");
-	  }
-	else
-	  {
-	    req->swfSize = size;
-	  }
-	break;
-      }
-    case 'W':
-      {
-        STR2AVAL(req->swfUrl, arg);
-        req->swfVfy = 1;
-      }
-      break;
-    case 'X':
-      {
-	int num = atoi(arg);
-	if (num < 0)
-	  {
-	    RTMP_Log(RTMP_LOGERROR, "SWF Age must be non-negative, ignoring\n");
-	  }
-	else
-	  {
-	    req->swfAge = num;
-	  }
-	break;
-      }
+	case 'X':
+	{
+		int num = atoi(arg);
+		if (num < 0)
+		{
+			RTMP_Log(RTMP_LOGERROR, "SWF Age must be non-negative, ignoring\n");
+		}
+		else
+		{
+			req->swfAge = num;
+		}
+		break;
+	}
 #endif
-    case 'b':
-      {
-	int32_t bt = atol(arg);
-	if (bt < 0)
-	  {
-	    RTMP_Log(RTMP_LOGERROR,
-		"Buffer time must be greater than zero, ignoring the specified value %d!",
-		bt);
-	  }
-	else
-	  {
-	    req->bufferTime = bt;
-	  }
-	break;
-      }
-    case 'v':
-      req->bLiveStream = TRUE;	// no seeking or resuming possible!
-      break;
-    case 'd':
-      STR2AVAL(req->subscribepath, arg);
-      break;
-    case 'n':
-      STR2AVAL(req->hostname, arg);
-      break;
-    case 'c':
-      req->rtmpport = atoi(arg);
-      break;
-    case 'l':
-      {
-	int protocol = atoi(arg);
-	if (protocol < RTMP_PROTOCOL_RTMP || protocol > RTMP_PROTOCOL_RTMPTS)
-	  {
-	    RTMP_Log(RTMP_LOGERROR, "Unknown protocol specified: %d, using default",
-		protocol);
-	    return FALSE;
-	  }
-	else
-	  {
-	    req->protocol = protocol;
-	  }
-	break;
-      }
-    case 'y':
-      STR2AVAL(req->playpath, arg);
-      break;
-    case 'r':
-      {
-	req->rtmpurl = arg;
+	case 'b':
+	{
+		int32_t bt = atol(arg);
+		if (bt < 0)
+		{
+			RTMP_Log(RTMP_LOGERROR,
+				"Buffer time must be greater than zero, ignoring the specified value %d!",
+				bt);
+		}
+		else
+		{
+			req->bufferTime = bt;
+		}
+		break;
+	}
+	case 'v':
+		req->bLiveStream = TRUE;	// no seeking or resuming possible!
+		break;
+	case 'd':
+		STR2AVAL(req->subscribepath, arg);
+		break;
+	case 'n':
+		STR2AVAL(req->hostname, arg);
+		break;
+	case 'c':
+		req->rtmpport = atoi(arg);
+		break;
+	case 'l':
+	{
+		int protocol = atoi(arg);
+		if (protocol < RTMP_PROTOCOL_RTMP || protocol > RTMP_PROTOCOL_RTMPTS)
+		{
+			RTMP_Log(RTMP_LOGERROR, "Unknown protocol specified: %d, using default",
+				protocol);
+			return FALSE;
+		}
+		else
+		{
+			req->protocol = protocol;
+		}
+		break;
+	}
+	case 'y':
+		STR2AVAL(req->playpath, arg);
+		break;
+	case 'r':
+	{
+		req->rtmpurl = arg;
 
-	AVal parsedHost, parsedPlaypath, parsedApp;
-	unsigned int parsedPort = 0;
-	int parsedProtocol = RTMP_PROTOCOL_UNDEFINED;
+		AVal parsedHost, parsedPlaypath, parsedApp;
+		unsigned int parsedPort = 0;
+		int parsedProtocol = RTMP_PROTOCOL_UNDEFINED;
 
-	if (!RTMP_ParseURL
-	    (req->rtmpurl, &parsedProtocol, &parsedHost, &parsedPort,
-	     &parsedPlaypath, &parsedApp))
-	  {
-	    RTMP_Log(RTMP_LOGWARNING, "Couldn't parse the specified url (%s)!", arg);
-	  }
-	else
-	  {
-	    if (!req->hostname.av_len)
-	      req->hostname = parsedHost;
-	    if (req->rtmpport == -1)
-	      req->rtmpport = parsedPort;
-	    if (req->playpath.av_len == 0 && parsedPlaypath.av_len)
-	      {
-		    req->playpath = parsedPlaypath;
-	      }
-	    if (req->protocol == RTMP_PROTOCOL_UNDEFINED)
-	      req->protocol = parsedProtocol;
-	    if (req->app.av_len == 0 && parsedApp.av_len)
-	      {
-		    req->app = parsedApp;
-	      }
-	  }
-	break;
-      }
-    case 's':
-      STR2AVAL(req->swfUrl, arg);
-      break;
-    case 't':
-      STR2AVAL(req->tcUrl, arg);
-      break;
-    case 'p':
-      STR2AVAL(req->pageUrl, arg);
-      break;
-    case 'a':
-      STR2AVAL(req->app, arg);
-      break;
-    case 'f':
-      STR2AVAL(req->flashVer, arg);
-      break;
-    case 'u':
-      STR2AVAL(req->auth, arg);
-      break;
-    case 'C':
-      parseAMF(&req->extras, optarg, &req->edepth);
-      break;
-    case 'm':
-      req->timeout = atoi(arg);
-      break;
-    case 'A':
-      req->dStartOffset = (int)(atof(arg) * 1000.0);
-      //printf("dStartOffset = %d\n", dStartOffset);
-      break;
-    case 'B':
-      req->dStopOffset = (int)(atof(arg) * 1000.0);
-      //printf("dStartOffset = %d\n", dStartOffset);
-      break;
-    case 'T':
-      STR2AVAL(req->token, arg);
-      break;
-    case 'S':
-      STR2AVAL(req->sockshost, arg);
-    case 'q':
-      RTMP_debuglevel = RTMP_LOGCRIT;
-      break;
-    case 'V':
-      RTMP_debuglevel = RTMP_LOGDEBUG;
-      break;
-    case 'z':
-      RTMP_debuglevel = RTMP_LOGALL;
-      break;
-    default:
-      RTMP_LogPrintf("unknown option: %c, arg: %s\n", opt, arg);
-      return FALSE;
-    }
-  return TRUE;
-}
-
-
-int strncasecmp(const char* src, const char* dst, unsigned int size)
-{
-	return strncmp(src, dst, size);
-}
-
-int strcasecmp(const char* src, const char* dst)
-{
-	return strcmp(src, dst);
-}
-
-long ftello64(FILE* stream)
-{
-	return ftell(stream);
-}
-
-long fseeko64(FILE* Stream, long  Offset,	int Origin )
-{
-	return fseek(Stream, Offset, Origin);
-}
-
-long getopt_long(int argc, char** argv, char* optstr)
-{
-	return getopt(argc, argv, optstr);
+		if (!RTMP_ParseURL
+		(req->rtmpurl, &parsedProtocol, &parsedHost, &parsedPort,
+			&parsedPlaypath, &parsedApp))
+		{
+			RTMP_Log(RTMP_LOGWARNING, "Couldn't parse the specified url (%s)!", arg);
+		}
+		else
+		{
+			if (!req->hostname.av_len)
+				req->hostname = parsedHost;
+			if (req->rtmpport == -1)
+				req->rtmpport = parsedPort;
+			if (req->playpath.av_len == 0 && parsedPlaypath.av_len)
+			{
+				req->playpath = parsedPlaypath;
+			}
+			if (req->protocol == RTMP_PROTOCOL_UNDEFINED)
+				req->protocol = parsedProtocol;
+			if (req->app.av_len == 0 && parsedApp.av_len)
+			{
+				req->app = parsedApp;
+			}
+		}
+		break;
+	}
+	case 'i':
+		STR2AVAL(req->fullUrl, arg);
+		break;
+	case 's':
+		STR2AVAL(req->swfUrl, arg);
+		break;
+	case 't':
+		STR2AVAL(req->tcUrl, arg);
+		break;
+	case 'p':
+		STR2AVAL(req->pageUrl, arg);
+		break;
+	case 'a':
+		STR2AVAL(req->app, arg);
+		break;
+	case 'f':
+		STR2AVAL(req->flashVer, arg);
+		break;
+	case 'u':
+		STR2AVAL(req->auth, arg);
+		break;
+	case 'C':
+		parseAMF(&req->extras, arg, &req->edepth);
+		break;
+	case 'm':
+		req->timeout = atoi(arg);
+		break;
+	case 'A':
+		req->dStartOffset = (int)(atof(arg) * 1000.0);
+		//printf("dStartOffset = %d\n", dStartOffset);
+		break;
+	case 'B':
+		req->dStopOffset = (int)(atof(arg) * 1000.0);
+		//printf("dStartOffset = %d\n", dStartOffset);
+		break;
+	case 'T':
+		STR2AVAL(req->token, arg);
+		break;
+	case 'S':
+		STR2AVAL(req->sockshost, arg);
+	case 'q':
+		RTMP_debuglevel = RTMP_LOGCRIT;
+		break;
+	case 'V':
+		RTMP_debuglevel = RTMP_LOGDEBUG;
+		break;
+	case 'z':
+		RTMP_debuglevel = RTMP_LOGALL;
+		break;
+	case 'j':
+		STR2AVAL(req->usherToken, arg);
+		break;
+	default:
+		RTMP_LogPrintf("unknown option: %c, arg: %s\n", opt, arg);
+		return FALSE;
+	}
+	return TRUE;
 }
 
 int
@@ -1020,6 +1008,7 @@ main(int argc, char **argv)
   int opt;
   struct option longopts[] = {
     {"help", 0, NULL, 'h'},
+    {"url", 1, NULL, 'i'},
     {"host", 1, NULL, 'n'},
     {"port", 1, NULL, 'c'},
     {"socks", 1, NULL, 'S'},
@@ -1054,6 +1043,7 @@ main(int argc, char **argv)
     {"debug", 0, NULL, 'z'},
     {"quiet", 0, NULL, 'q'},
     {"verbose", 0, NULL, 'V'},
+    {"jtv", 1, NULL, 'j'},
     {0, 0, 0, 0}
   };
 
@@ -1066,7 +1056,7 @@ main(int argc, char **argv)
 
   while ((opt =
 	  getopt_long(argc, argv,
-		      "hvqVzr:s:t:p:a:f:u:n:c:l:y:m:d:D:A:B:T:g:w:x:W:X:S:", longopts,
+		      "hvqVzr:s:t:i:p:a:f:u:n:c:l:y:m:d:D:A:B:T:g:w:x:W:X:S:j:", longopts,
 		      NULL)) != -1)
     {
       switch (opt)
@@ -1075,6 +1065,8 @@ main(int argc, char **argv)
 	  RTMP_LogPrintf
 	    ("\nThis program serves media content streamed from RTMP onto HTTP.\n\n");
 	  RTMP_LogPrintf("--help|-h               Prints this help screen.\n");
+	  RTMP_LogPrintf
+	    ("--url|-i url            URL with options included (e.g. rtmp://host[:port]/path swfUrl=url tcUrl=url)\n");
 	  RTMP_LogPrintf
 	    ("--rtmp|-r url           URL (e.g. rtmp://host[:port]/path)\n");
 	  RTMP_LogPrintf
@@ -1127,7 +1119,9 @@ main(int argc, char **argv)
 	  RTMP_LogPrintf
 	    ("--token|-T key          Key for SecureToken response\n");
 	  RTMP_LogPrintf
-	    ("--buffer|-b             Buffer time in milliseconds (default: %lu)\n\n",
+	    ("--jtv|-j JSON           Authentication token for Justin.tv legacy servers\n");
+	  RTMP_LogPrintf
+	    ("--buffer|-b             Buffer time in milliseconds (default: %u)\n\n",
 	     defaultRTMPRequest.bufferTime);
 
 	  RTMP_LogPrintf

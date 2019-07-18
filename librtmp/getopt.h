@@ -41,7 +41,25 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include<stdio.h>
+	struct option {
+		const char *name;
+		int has_arg;
+		int *flag;
+		int val;
+	};
 
+#ifdef WIN32
+	int strncasecmp(const char* src, const char* dst, unsigned int size);
+
+	int strcasecmp(const char* src, const char* dst);
+
+	long ftello64(FILE* stream);
+
+	long fseeko64(FILE* Stream, long  Offset, int Origin);
+
+	long getopt_long(int argc, char** argv, char* optstr);
+#endif
 
 extern char* optarg;
 extern int optind;

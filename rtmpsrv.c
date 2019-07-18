@@ -1074,6 +1074,19 @@ sigIntHandler(int sig)
   signal(SIGINT, SIG_DFL);
 }
 
+void LogCallback(int level, const char *fmt, ...)
+{
+	RTMP_LogLevel lvl = RTMP_LogGetLevel();
+	if (level <= lvl)
+	{
+		va_list args;
+		va_start(args, fmt);
+		RTMP_LogPrintf(fmt, args);
+		va_end(args);
+	}
+	return;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -1092,7 +1105,7 @@ main(int argc, char **argv)
 
   RTMP_LogPrintf("RTMP Server %s\n", RTMPDUMP_VERSION);
   RTMP_LogPrintf("(c) 2019/07/12 duyongze; license: GPL\n\n");
-
+  RTMP_LogSetCallback(LogCallback);
   RTMP_LogSetLevel(RTMP_LOGALL);
 
   for (i = 1; i < argc; i++)

@@ -971,14 +971,15 @@ serverThread(void *arg)
 	{
 #ifdef linux
 	  struct sockaddr_in dest;
-	  char destch[16];
+	  char destch[16] = { 0 };
+	  char addrch[16] = { 0 };
 	  socklen_t destlen = sizeof(struct sockaddr_in);
 	  getsockopt(sockfd, SOL_IP, SO_ORIGINAL_DST, &dest, &destlen);
-	  strcpy(destch, inet_ntoa(dest.sin_addr));
-	  RTMP_Log(RTMP_LOGDEBUG, "%s: accepted connection from %s to %s\n", __FUNCTION__,
-	      inet_ntoa(addr.sin_addr), destch);
+	  strncpy(destch, inet_ntoa(dest.sin_addr), sizeof(destch));
+	  strncpy(addrch, inet_ntoa(addr.sin_addr), sizeof(addrch));
+	  RTMP_Log(RTMP_LOGDEBUG, "(%s): accepted connection from %s to %s\n", "__FUNCTION__", "addrch", "destch");
 #else
-	  RTMP_Log(RTMP_LOGDEBUG, "%s: accepted connection from %s\n", __FUNCTION__,
+	  RTMP_Log(RTMP_LOGDEBUG, "(%s): accepted connection from %s\n", __FUNCTION__,
 	      inet_ntoa(addr.sin_addr));
 #endif
 	  /* Create a new thread and transfer the control to that */
@@ -1079,10 +1080,14 @@ void LogCallback(int level, const char *fmt, ...)
 	RTMP_LogLevel lvl = RTMP_LogGetLevel();
 	if (level <= lvl)
 	{
+		char str[1024] = "";
+		memset(str, 0, sizeof(str));
+		str[1022] = '\n';
 		va_list args;
 		va_start(args, fmt);
-		RTMP_LogPrintf(fmt, args);
+		vsnprintf(str, 1024 - 4, fmt, args);
 		va_end(args);
+		fprintf(stderr, str);
 	}
 	return;
 }
@@ -1105,7 +1110,7 @@ main(int argc, char **argv)
 
   RTMP_LogPrintf("RTMP Server %s\n", RTMPDUMP_VERSION);
   RTMP_LogPrintf("(c) 2019/07/12 duyongze; license: GPL\n\n");
-  RTMP_LogSetCallback(LogCallback);
+  //RTMP_LogSetCallback(LogCallback);
   RTMP_LogSetLevel(RTMP_LOGALL);
 
   for (i = 1; i < argc; i++)

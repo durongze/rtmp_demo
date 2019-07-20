@@ -30,7 +30,7 @@
 #include "rtmp_sys.h"
 #include "log.h"
 
-#define MAX_PRINT_LEN	2048
+#define MAX_PRINT_LEN	4096
 
 RTMP_LogLevel RTMP_debuglevel = RTMP_LOGERROR;
 
@@ -38,14 +38,15 @@ static int neednl;
 
 static FILE *fmsg;
 
-static RTMP_LogCallback rtmp_log_default, *cb = rtmp_log_default;
+extern void rtmp_log_default(int level, const char *format, va_list vl);
+static RTMP_LogCallback *cb = rtmp_log_default;
 
 static const char *levels[] = {
   "CRIT", "ERROR", "WARNING", "INFO",
   "DEBUG", "DEBUG2"
 };
 
-static void rtmp_log_default(int level, const char *format, va_list vl)
+void rtmp_log_default(int level, const char *format, va_list vl)
 {
 	char str[MAX_PRINT_LEN]="";
 
@@ -58,14 +59,8 @@ static void rtmp_log_default(int level, const char *format, va_list vl)
 	if ( !fmsg ) fmsg = stderr;
 
 	if ( level <= RTMP_debuglevel ) {
-		if (neednl) {
-			putc('\n', fmsg);
-			neednl = 0;
-		}
 		fprintf(fmsg, "%s: %s\n", levels[level], str);
-#ifdef _DEBUG
 		fflush(fmsg);
-#endif
 	}
 }
 
@@ -182,12 +177,11 @@ void RTMP_LogHexString(int level, const uint8_t *data, unsigned long len)
 void RTMP_LogPrintf(const char *format, ...)
 {
 	char str[MAX_PRINT_LEN]="";
-	int len;
 	memset(str, 0, sizeof(str));
-	str[len - 1] = '\n';
+
 	va_list args;
 	va_start(args, format);
-	len = vsnprintf(str, MAX_PRINT_LEN-1, format, args);
+	vsnprintf(str, MAX_PRINT_LEN-4, format, args);
 	va_end(args);
 
 	if ( RTMP_debuglevel==RTMP_LOGCRIT )
@@ -200,11 +194,8 @@ void RTMP_LogPrintf(const char *format, ...)
 		neednl = 0;
 	}
 
-    if (len > MAX_PRINT_LEN-1)
-          len = MAX_PRINT_LEN-1;
 	fprintf(fmsg, "%s", str);
-    if (str[len-1] == '\n')
-		fflush(fmsg);
+	fflush(fmsg);
 }
 
 void RTMP_LogStatus(const char *format, ...)

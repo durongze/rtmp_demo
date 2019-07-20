@@ -977,7 +977,7 @@ serverThread(void *arg)
 	  getsockopt(sockfd, SOL_IP, SO_ORIGINAL_DST, &dest, &destlen);
 	  strncpy(destch, inet_ntoa(dest.sin_addr), sizeof(destch));
 	  strncpy(addrch, inet_ntoa(addr.sin_addr), sizeof(addrch));
-	  RTMP_Log(RTMP_LOGDEBUG, "(%s): accepted connection from %s to %s\n", "__FUNCTION__", "addrch", "destch");
+	  RTMP_Log(RTMP_LOGDEBUG, "(%s): accepted connection from %s to %s\n", __FUNCTION__, addrch, destch);
 #else
 	  RTMP_Log(RTMP_LOGDEBUG, "(%s): accepted connection from %s\n", __FUNCTION__,
 	      inet_ntoa(addr.sin_addr));

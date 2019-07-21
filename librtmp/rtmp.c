@@ -127,12 +127,12 @@ static int SendBGHasStream(RTMP *r, double dId, AVal *playpath);
 
 static int HandleInvoke(RTMP *r, const char *body, unsigned int nBodySize);
 static int HandleMetadata(RTMP *r, char *body, unsigned int len);
-static void HandleChangeChunkSize(RTMP *r, const RTMPPacket *packet);
-static void HandleAudio(RTMP *r, const RTMPPacket *packet);
-static void HandleVideo(RTMP *r, const RTMPPacket *packet);
-static void HandleCtrl(RTMP *r, const RTMPPacket *packet);
-static void HandleServerBW(RTMP *r, const RTMPPacket *packet);
-static void HandleClientBW(RTMP *r, const RTMPPacket *packet);
+void HandleChangeChunkSize(RTMP *r, const RTMPPacket *packet);
+void HandleAudio(RTMP *r, const RTMPPacket *packet);
+void HandleVideo(RTMP *r, const RTMPPacket *packet);
+void HandleCtrl(RTMP *r, const RTMPPacket *packet);
+void HandleServerBW(RTMP *r, const RTMPPacket *packet);
+void HandleClientBW(RTMP *r, const RTMPPacket *packet);
 
 static int ReadN(RTMP *r, char *buffer, int n);
 static int WriteN(RTMP *r, const char *buffer, int n);
@@ -734,7 +734,8 @@ int RTMP_SetOpt(RTMP *r, const AVal *opt, AVal *arg)
       for (j=0; truth[j].av_len; j++) {
         if (arg->av_len != truth[j].av_len) continue;
         if (strcasecmp(arg->av_val, truth[j].av_val)) continue;
-        fl |= options[i].omisc; break; }
+				fl |= options[i].omisc; break;
+			}
       *(int *)v = fl;
       }
       break;
@@ -789,7 +790,8 @@ int RTMP_SetupURL(RTMP *r, char *url)
       /* skip repeated spaces */
       while(ptr[1] == ' ')
       	*ptr++ = '\0';
-    } else {
+		}
+		else {
       arg.av_len = strlen(p2);
     }
 
@@ -804,7 +806,8 @@ int RTMP_SetupURL(RTMP *r, char *url)
 	*p2++ = c;
 	port -= 3;
 	p1 += 3;
-      } else {
+			}
+			else {
 	*p2++ = *p1++;
 	port--;
       }
@@ -1468,7 +1471,7 @@ ReadN(RTMP *r, char *buffer, int n)
 	    if (!SendBytesReceived(r))
 	        return FALSE;
 	}
-      /*RTMP_Log(RTMP_LOGDEBUG, "%s: %d bytes\n", __FUNCTION__, nBytes); */
+		RTMP_Log(RTMP_LOGDEBUG, "%s: %d bytes\n", __FUNCTION__, nBytes); 
 #ifdef _DEBUG
       fwrite(ptr, 1, nBytes, netstackdump_read);
 #endif
@@ -2544,13 +2547,15 @@ PublisherAuth(RTMP *r, AVal *description)
             if (strstr(r->Link.app.av_val, av_authmod_adobe.av_val) != NULL) {
               RTMP_Log(RTMP_LOGERROR, "%s, wrong pubUser & pubPasswd for publisher auth", __FUNCTION__);
               return 0;
-            } else if(r->Link.pubUser.av_len && r->Link.pubPasswd.av_len) {
+			}
+			else if (r->Link.pubUser.av_len && r->Link.pubPasswd.av_len) {
               pubToken.av_val = malloc(r->Link.pubUser.av_len + av_authmod_adobe.av_len + 8);
               pubToken.av_len = sprintf(pubToken.av_val, "?%s&user=%s",
                       av_authmod_adobe.av_val,
                       r->Link.pubUser.av_val);
               RTMP_Log(RTMP_LOGDEBUG, "%s, pubToken1: %s", __FUNCTION__, pubToken.av_val);
-            } else {
+			}
+			else {
               RTMP_Log(RTMP_LOGERROR, "%s, need to set pubUser & pubPasswd for publisher auth", __FUNCTION__);
               return 0;
             }
@@ -2581,13 +2586,16 @@ PublisherAuth(RTMP *r, AVal *description)
               if (strcmp(par, "user") == 0){
                   user.av_val = val;
 		  aptr = &user;
-              } else if (strcmp(par, "salt") == 0){
+				}
+				else if (strcmp(par, "salt") == 0) {
                   salt.av_val = val;
 		  aptr = &salt;
-              } else if (strcmp(par, "opaque") == 0){
+				}
+				else if (strcmp(par, "opaque") == 0) {
                   opaque.av_val = val;
 		  aptr = &opaque;
-              } else if (strcmp(par, "challenge") == 0){
+				}
+				else if (strcmp(par, "challenge") == 0) {
                   challenge.av_val = val;
 		  aptr = &challenge;
               }
@@ -2692,13 +2700,15 @@ PublisherAuth(RTMP *r, AVal *description)
             if (strstr(r->Link.app.av_val, av_authmod_llnw.av_val) != NULL) {
               RTMP_Log(RTMP_LOGERROR, "%s, wrong pubUser & pubPasswd for publisher auth", __FUNCTION__);
               return 0;
-            } else if(r->Link.pubUser.av_len && r->Link.pubPasswd.av_len) {
+			}
+			else if (r->Link.pubUser.av_len && r->Link.pubPasswd.av_len) {
               pubToken.av_val = malloc(r->Link.pubUser.av_len + av_authmod_llnw.av_len + 8);
               pubToken.av_len = sprintf(pubToken.av_val, "?%s&user=%s",
                       av_authmod_llnw.av_val,
                       r->Link.pubUser.av_val);
               RTMP_Log(RTMP_LOGDEBUG, "%s, pubToken1: %s", __FUNCTION__, pubToken.av_val);
-            } else {
+			}
+			else {
               RTMP_Log(RTMP_LOGERROR, "%s, need to set pubUser & pubPasswd for publisher auth", __FUNCTION__);
               return 0;
             }
@@ -2748,7 +2758,8 @@ PublisherAuth(RTMP *r, AVal *description)
               if (strcmp(par, "user") == 0){
                 user.av_val = val;
 		aptr = &user;
-              } else if (strcmp(par, "nonce") == 0){
+				}
+				else if (strcmp(par, "nonce") == 0) {
                 nonce.av_val = val;
 		aptr = &nonce;
               }
@@ -3341,7 +3352,7 @@ HandleMetadata(RTMP *r, char *body, unsigned int len)
   return ret;
 }
 
-static void
+void
 HandleChangeChunkSize(RTMP *r, const RTMPPacket *packet)
 {
   if (packet->m_nBodySize >= 4)
@@ -3352,17 +3363,17 @@ HandleChangeChunkSize(RTMP *r, const RTMPPacket *packet)
     }
 }
 
-static void
+void
 HandleAudio(RTMP *r, const RTMPPacket *packet)
 {
 }
 
-static void
+void
 HandleVideo(RTMP *r, const RTMPPacket *packet)
 {
 }
 
-static void
+void
 HandleCtrl(RTMP *r, const RTMPPacket *packet)
 {
   short nType = -1;
@@ -3504,14 +3515,14 @@ HandleCtrl(RTMP *r, const RTMPPacket *packet)
     }
 }
 
-static void
+void
 HandleServerBW(RTMP *r, const RTMPPacket *packet)
 {
   r->m_nServerBW = AMF_DecodeInt32(packet->m_body);
   RTMP_Log(RTMP_LOGDEBUG, "%s: server BW = %d", __FUNCTION__, r->m_nServerBW);
 }
 
-static void
+void
 HandleClientBW(RTMP *r, const RTMPPacket *packet)
 {
   r->m_nClientBW = AMF_DecodeInt32(packet->m_body);
@@ -3523,7 +3534,7 @@ HandleClientBW(RTMP *r, const RTMPPacket *packet)
       r->m_nClientBW2);
 }
 
-static int
+int
 DecodeInt32LE(const char *data)
 {
   unsigned char *c = (unsigned char *)data;
@@ -3533,7 +3544,7 @@ DecodeInt32LE(const char *data)
   return val;
 }
 
-static int
+int
 EncodeInt32LE(char *output, int nVal)
 {
   output[0] = nVal;

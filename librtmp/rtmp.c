@@ -130,6 +130,9 @@ static int HandleMetadata(RTMP *r, char *body, unsigned int len);
 void HandleChangeChunkSize(RTMP *r, const RTMPPacket *packet);
 void HandleAudio(RTMP *r, const RTMPPacket *packet);
 void HandleVideo(RTMP *r, const RTMPPacket *packet);
+void HandleFlashVideo(RTMP *r, const RTMPPacket *packet);
+void HandleFlexMessage(RTMP * r,const RTMPPacket * packet);
+
 void HandleCtrl(RTMP *r, const RTMPPacket *packet);
 void HandleServerBW(RTMP *r, const RTMPPacket *packet);
 void HandleClientBW(RTMP *r, const RTMPPacket *packet);
@@ -1298,19 +1301,10 @@ RTMP_ClientPacket(RTMP *r, RTMPPacket *packet)
 		RTMP_Log(RTMP_LOGDEBUG,
 			"%s, flex message, size %u bytes, not fully supported",
 			__FUNCTION__, packet->m_nBodySize);
-		/*RTMP_LogHex(packet.m_body, packet.m_nBodySize); */
+		RTMP_LogHex(RTMP_LOGDEBUG2, packet->m_body, packet->m_nBodySize); 
 
 		/* some DEBUG code */
-#if 0
-		RTMP_LIB_AMFObject obj;
-		int nRes = obj.Decode(packet.m_body + 1, packet.m_nBodySize - 1);
-		if (nRes < 0) {
-			RTMP_Log(RTMP_LOGERROR, "%s, error decoding AMF3 packet", __FUNCTION__);
-			/*return; */
-		}
-
-		obj.Dump();
-#endif
+        HandleFlexMessage(r, packet);
 
 		if (HandleInvoke(r, packet->m_body + 1, packet->m_nBodySize - 1) == 1)
 			bHasMediaPacket = 2;
@@ -1342,31 +1336,7 @@ RTMP_ClientPacket(RTMP *r, RTMPPacket *packet)
 	case RTMP_PACKET_TYPE_FLASH_VIDEO:
 	{
 		/* go through FLV packets and handle metadata packets */
-		unsigned int pos = 0;
-		uint32_t nTimeStamp = packet->m_nTimeStamp;
-
-		while (pos + 11 < packet->m_nBodySize)
-		{
-			uint32_t dataSize = AMF_DecodeInt24(packet->m_body + pos + 1);	/* size without header (11) and prevTagSize (4) */
-
-			if (pos + 11 + dataSize + 4 > packet->m_nBodySize)
-			{
-				RTMP_Log(RTMP_LOGWARNING, "Stream corrupt?!");
-				break;
-			}
-			if (packet->m_body[pos] == 0x12)
-			{
-				HandleMetadata(r, packet->m_body + pos + 11, dataSize);
-			}
-			else if (packet->m_body[pos] == 8 || packet->m_body[pos] == 9)
-			{
-				nTimeStamp = AMF_DecodeInt24(packet->m_body + pos + 4);
-				nTimeStamp |= (packet->m_body[pos + 7] << 24);
-			}
-			pos += (11 + dataSize + 4);
-		}
-		if (!r->m_pausing)
-			r->m_mediaStamp = nTimeStamp;
+        HandleFlashVideo(r, packet);
 
 		/* FLV tag(s) */
 		RTMP_Log(RTMP_LOGDEBUG2, "%s, received: FLV tag(s) %lu bytes", __FUNCTION__, packet->m_nBodySize); 
@@ -3371,6 +3341,54 @@ HandleAudio(RTMP *r, const RTMPPacket *packet)
 void
 HandleVideo(RTMP *r, const RTMPPacket *packet)
 {
+}
+
+void
+HandleFlashVideo(RTMP *r, const RTMPPacket *packet)
+{
+	unsigned int pos = 0;
+	uint32_t nTimeStamp = packet->m_nTimeStamp;
+	
+	while (pos + 11 < packet->m_nBodySize)
+	{
+		uint32_t dataSize = AMF_DecodeInt24(packet->m_body + pos + 1);	/* size without header (11) and prevTagSize (4) */
+	
+		if (pos + 11 + dataSize + 4 > packet->m_nBodySize)
+		{
+			RTMP_Log(RTMP_LOGWARNING, "Stream corrupt?!");
+			break;
+		}
+		if (packet->m_body[pos] == 0x12)
+		{
+			HandleMetadata(r, packet->m_body + pos + 11, dataSize);
+		}
+		else if (packet->m_body[pos] == 8 || packet->m_body[pos] == 9)
+		{
+			nTimeStamp = AMF_DecodeInt24(packet->m_body + pos + 4);
+			nTimeStamp |= (packet->m_body[pos + 7] << 24);
+		}
+		pos += (11 + dataSize + 4);
+	}
+	if (!r->m_pausing)
+		r->m_mediaStamp = nTimeStamp;
+	
+	return ;
+}
+
+void 
+HandleFlexMessage(RTMP * r,const RTMPPacket * packet)
+{
+#if 0
+	RTMP_LIB_AMFObject obj;
+	int nRes = obj.Decode(packet.m_body + 1, packet.m_nBodySize - 1);
+	if (nRes < 0) {
+		RTMP_Log(RTMP_LOGERROR, "%s, error decoding AMF3 packet", __FUNCTION__);
+		/*return; */
+	}
+
+	obj.Dump();
+#endif
+    return ;
 }
 
 void

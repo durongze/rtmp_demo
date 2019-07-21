@@ -163,10 +163,10 @@ int publish_using_packet() {
 	while (1)
 	{
 		if ((((now_time = RTMP_GetTime()) - start_time)
-			<(pre_frame_time)) && bNextIsKey) {
+			< (pre_frame_time)) && bNextIsKey) {
 			//wait for 1 sec if the send process is too fast
 			//this mechanism is not very good,need some improvement
-			if (pre_frame_time>lasttime) {
+			if (pre_frame_time > lasttime) {
 				RTMP_LogPrintf("TimeStamp:%8lu ms\n", pre_frame_time);
 				lasttime = pre_frame_time;
 			}
@@ -319,10 +319,10 @@ int publish_using_write() {
 	while (1)
 	{
 		if ((((now_time = RTMP_GetTime()) - start_time)
-			<(pre_frame_time)) && bNextIsKey) {
+			< (pre_frame_time)) && bNextIsKey) {
 			//wait for 1 sec if the send process is too fast
 			//this mechanism is not very good,need some improvement
-			if (pre_frame_time>lasttime) {
+			if (pre_frame_time > lasttime) {
 				RTMP_LogPrintf("TimeStamp:%8lu ms\n", pre_frame_time);
 				lasttime = pre_frame_time;
 			}

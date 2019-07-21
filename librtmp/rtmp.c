@@ -1258,7 +1258,7 @@ RTMP_ClientPacket(RTMP *r, RTMPPacket *packet)
 
 	case RTMP_PACKET_TYPE_AUDIO:
 		/* audio data */
-		RTMP_Log(RTMP_LOGDEBUG2, "%s, received: audio %lu bytes", __FUNCTION__, packet.m_nBodySize); 
+		RTMP_Log(RTMP_LOGDEBUG2, "%s, received: audio %lu bytes", __FUNCTION__, packet->m_nBodySize); 
 		HandleAudio(r, packet);
 		bHasMediaPacket = 1;
 		if (!r->m_mediaChannel)
@@ -1269,7 +1269,7 @@ RTMP_ClientPacket(RTMP *r, RTMPPacket *packet)
 
 	case RTMP_PACKET_TYPE_VIDEO:
 		/* video data */
-		RTMP_Log(RTMP_LOGDEBUG2, "%s, received: video %lu bytes", __FUNCTION__, packet.m_nBodySize); 
+		RTMP_Log(RTMP_LOGDEBUG2, "%s, received: video %lu bytes", __FUNCTION__, packet->m_nBodySize); 
 		HandleVideo(r, packet);
 		bHasMediaPacket = 1;
 		if (!r->m_mediaChannel)
@@ -1333,7 +1333,7 @@ RTMP_ClientPacket(RTMP *r, RTMPPacket *packet)
 		/* invoke */
 		RTMP_Log(RTMP_LOGDEBUG, "%s, received: invoke %u bytes", __FUNCTION__,
 			packet->m_nBodySize);
-		RTMP_LogHex(RTMP_LOGDEBUG2, packet.m_body, packet.m_nBodySize); 
+		RTMP_LogHex(RTMP_LOGDEBUG2, packet->m_body, packet->m_nBodySize); 
 
 		if (HandleInvoke(r, packet->m_body, packet->m_nBodySize) == 1)
 			bHasMediaPacket = 2;
@@ -1369,7 +1369,7 @@ RTMP_ClientPacket(RTMP *r, RTMPPacket *packet)
 			r->m_mediaStamp = nTimeStamp;
 
 		/* FLV tag(s) */
-		RTMP_Log(RTMP_LOGDEBUG2, "%s, received: FLV tag(s) %lu bytes", __FUNCTION__, packet.m_nBodySize); 
+		RTMP_Log(RTMP_LOGDEBUG2, "%s, received: FLV tag(s) %lu bytes", __FUNCTION__, packet->m_nBodySize); 
 		bHasMediaPacket = 1;
 		break;
 	}
@@ -3382,7 +3382,7 @@ HandleCtrl(RTMP *r, const RTMPPacket *packet)
 		nType = AMF_DecodeInt16(packet->m_body);
 	RTMP_Log(RTMP_LOGDEBUG, "%s, received ctrl. type: %d, len: %d", __FUNCTION__, nType,
 		packet->m_nBodySize);
-	RTMP_LogHex(RTMP_LOGDEBUG2, packet.m_body, packet.m_nBodySize); 
+	RTMP_LogHex(RTMP_LOGDEBUG2, packet->m_body, packet->m_nBodySize); 
 
 	if (packet->m_nBodySize >= 6)
 	{

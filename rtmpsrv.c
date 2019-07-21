@@ -834,15 +834,7 @@ ServePacket(STREAMING_SERVER *server, RTMP *r, RTMPPacket *packet)
 			__FUNCTION__, packet->m_nBodySize);
 		RTMP_LogHex(RTMP_LOGDEBUG, packet->m_body, packet->m_nBodySize);
 
-		// some DEBUG code
-		/*RTMP_LIB_AMFObject obj;
-		   int nRes = obj.Decode(packet.m_body+1, packet.m_nBodySize-1);
-		   if(nRes < 0) {
-		   RTMP_Log(RTMP_LOGERROR, "%s, error decoding AMF3 packet", __FUNCTION__);
-		   //return;
-		   }
-
-		   obj.Dump(); */
+		HandleFlexMessage(r, packet);
 
 		if (ServeInvoke(server, r, packet, 1))
 			RTMP_Close(r);

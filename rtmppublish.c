@@ -15,8 +15,8 @@
          (x<<8&0xff0000)|(x<<24&0xff000000))
 #define HTONTIME(x) ((x>>16&0xff)|(x<<16&0xff0000)|(x&0xff00)|(x&0xff000000))
 
-#define FLV_FILE  "D:\\code\\rtmpdump-2.3\\dyzbuild\\test.flv"
-#define RTMP_STREAM "rtmp://192.168.137.1:1935/livestream"
+#define FLV_FILE  "test.flv"
+#define RTMP_STREAM "rtmp://192.168.137.1:1935/cctvf/durongze"
 
 #ifdef _DEBUG
 uint32_t debugTS = 0;
@@ -109,6 +109,10 @@ int publish_using_packet() {
 		return -1;
 	}
 
+#ifdef _DEBUG
+	netstackdump = fopen("netstackdump", "wb");
+	netstackdump_read = fopen("netstackdump_read", "wb");
+#endif
 	/* set log level */
 	//RTMP_LogLevel loglvl=RTMP_LOGDEBUG;
 	//RTMP_LogSetLevel(loglvl);
@@ -170,7 +174,7 @@ int publish_using_packet() {
 				RTMP_LogPrintf("TimeStamp:%8lu ms\n", pre_frame_time);
 				lasttime = pre_frame_time;
 			}
-			Sleep(1000);
+			msleep(1);
 			continue;
 		}
 
@@ -179,7 +183,7 @@ int publish_using_packet() {
 			break;
 		if (!ReadU24(&datalength, fp))
 			break;
-		if (!ReadTime(timestamp, fp))
+		if (!ReadTime(&timestamp, fp))
 			break;
 		if (!ReadU24(&streamid, fp))
 			break;
@@ -246,6 +250,12 @@ int publish_using_packet() {
 	}
 
 	CleanupSockets();
+#ifdef _DEBUG
+	if (netstackdump != 0)
+		fclose(netstackdump);
+	if (netstackdump_read != 0)
+		fclose(netstackdump_read);
+#endif
 	return 0;
 }
 
@@ -273,6 +283,10 @@ int publish_using_write() {
 		return -1;
 	}
 
+#ifdef _DEBUG
+	netstackdump = fopen("netstackdump", "wb");
+	netstackdump_read = fopen("netstackdump_read", "wb");
+#endif
 	/* set log level */
 	//RTMP_LogLevel loglvl=RTMP_LOGDEBUG;
 	//RTMP_LogSetLevel(loglvl);
@@ -309,7 +323,7 @@ int publish_using_write() {
 		return -1;
 	}
 
-	printf("Start to send data ...\n");
+	RTMP_LogPrintf("Start to send data ...\n");
 
 	//jump over FLV Header
 	fseek(fp, 9, SEEK_SET);
@@ -326,7 +340,7 @@ int publish_using_write() {
 				RTMP_LogPrintf("TimeStamp:%8lu ms\n", pre_frame_time);
 				lasttime = pre_frame_time;
 			}
-			Sleep(1000);
+			msleep(1);
 			continue;
 		}
 
@@ -334,7 +348,7 @@ int publish_using_write() {
 		fseek(fp, 1, SEEK_CUR);
 		if (!ReadU24(&datalength, fp))
 			break;
-		if (!ReadTime(timestamp, fp))
+		if (!ReadTime(&timestamp, fp))
 			break;
 		//jump back
 		fseek(fp, -8, SEEK_CUR);
@@ -391,6 +405,12 @@ int publish_using_write() {
 	}
 
 	CleanupSockets();
+#ifdef _DEBUG
+	if (netstackdump != 0)
+		fclose(netstackdump);
+	if (netstackdump_read != 0)
+		fclose(netstackdump_read);
+#endif
 	return 0;
 }
 

@@ -1,3 +1,5 @@
+#生成h264文件
+ffmpegd.exe -i output.mp4 output.264
 
 #推流
 

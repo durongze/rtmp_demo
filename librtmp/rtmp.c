@@ -3843,7 +3843,9 @@ SHandShake(RTMP *r)
 	int bMatch;
 
 	if (ReadN(r, serverbuf, 1) != 1)	/* 0x03 or 0x06 */
-		return FALSE;
+	{
+		return -1;
+	}
 
 	RTMP_Log(RTMP_LOGDEBUG, "%s: Type Request  : %02X", __FUNCTION__, serverbuf[0]);
 
@@ -3851,7 +3853,7 @@ SHandShake(RTMP *r)
 	{
 		RTMP_Log(RTMP_LOGERROR, "%s: Type unknown: client sent %02X",
 			__FUNCTION__, serverbuf[0]);
-		return FALSE;
+		return -2;
 	}
 
 	uptime = htonl(RTMP_GetTime());
@@ -3867,10 +3869,14 @@ SHandShake(RTMP *r)
 #endif
 
 	if (!WriteN(r, serverbuf, RTMP_SIG_SIZE + 1))
-		return FALSE;
+	{
+		return -3;
+	}
 
 	if (ReadN(r, clientsig, RTMP_SIG_SIZE) != RTMP_SIG_SIZE)
-		return FALSE;
+	{
+		return -4;
+	}
 
 	/* decode client response */
 
@@ -3883,17 +3889,21 @@ SHandShake(RTMP *r)
 
 	/* 2nd part of handshake */
 	if (!WriteN(r, clientsig, RTMP_SIG_SIZE))
-		return FALSE;
+	{
+		return -5;
+	}
 
 	if (ReadN(r, clientsig, RTMP_SIG_SIZE) != RTMP_SIG_SIZE)
-		return FALSE;
+	{
+		return -6;
+	}
 
 	bMatch = (memcmp(serversig, clientsig, RTMP_SIG_SIZE) == 0);
 	if (!bMatch)
 	{
 		RTMP_Log(RTMP_LOGWARNING, "%s, client signature does not match!", __FUNCTION__);
 	}
-	return TRUE;
+	return 1;
 }
 #endif
 
@@ -4149,7 +4159,18 @@ RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
 int
 RTMP_Serve(RTMP *r)
 {
-	return SHandShake(r);
+	int ret;
+	ret = SHandShake(r);
+	if (ret < 0)
+	{		
+		RTMP_Log(RTMP_LOGERROR, "%s: SHandShake ret:%d",
+			__FUNCTION__, ret);
+		return 0;
+	}
+	else
+	{
+		return 1;
+	}
 }
 
 void

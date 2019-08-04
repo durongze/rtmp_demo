@@ -135,11 +135,6 @@ extern "C"
     void *sb_ssl;
   } RTMPSockBuf;
 
-  void RTMPPacket_Reset(RTMPPacket *p);
-  void RTMPPacket_Dump(RTMPPacket *p);
-  int RTMPPacket_Alloc(RTMPPacket *p, uint32_t nSize);
-  void RTMPPacket_Free(RTMPPacket *p);
-
 #define RTMPPacket_IsReady(a)	((a)->m_nBytesRead == (a)->m_nBodySize)
 
   typedef struct RTMP_LNK
@@ -282,6 +277,16 @@ extern "C"
     RTMPSockBuf m_sb;
     RTMP_LNK Link;
   } RTMP;
+
+  typedef void (*HandleAudioCallBack)(RTMP *r, const RTMPPacket *packet);
+  typedef void (*HandleVideoCallBack)(RTMP *r, const RTMPPacket *packet);
+  void RTMPSetHandleAudioCallBack(HandleAudioCallBack* audioCall);
+  void RTMPSetHandleVideoCallBack(HandleVideoCallBack* videoCall);
+
+  void RTMPPacket_Reset(RTMPPacket *p);
+  void RTMPPacket_Dump(RTMPPacket *p);
+  int RTMPPacket_Alloc(RTMPPacket *p, uint32_t nSize);
+  void RTMPPacket_Free(RTMPPacket *p);
 
   void RTMP_Show(RTMP rtmp);
   int RTMP_ParseURL(const char *url, int *protocol, AVal *host,

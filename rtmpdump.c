@@ -55,6 +55,10 @@
 
 #define RTMPDmpLog(l, fmt, ...) RTMPLog(l, "DUMP", fmt, ##__VA_ARGS__)
 
+typedef struct {
+	unsigned int dStartOffset;
+	unsigned int dStopOffset;
+}SeekPos;
  // starts sockets
 int
 InitSockets()
@@ -712,6 +716,109 @@ void usage(char *prog)
     RTMP_LogPrintf("packet.\n\n");
 }
 
+int RTMPCtrlCFirst(RTMP *rtmp, int *nStatus, SeekPos *seekPos, int *bResume, uint32_t *dSeek)
+{
+    RTMP_LogPrintf("Connecting ...\n");
+
+    if (!RTMP_Connect(rtmp, NULL))
+    {
+        *nStatus = RD_NO_CONNECT;
+        return -1;
+    }
+
+    RTMP_Log(RTMP_LOGINFO, "Connected...");
+
+    // User defined seek offset
+    if (seekPos->dStartOffset > 0)
+    {
+        // Don't need the start offset if resuming an existing file
+        if (bResume)
+        {
+            RTMP_Log(RTMP_LOGWARNING, "Can't seek a resumed stream,ignoring start option");
+			seekPos->dStartOffset = 0;
+        }
+        else
+        {
+            dSeek = seekPos->dStartOffset;
+        }
+    }
+
+    // Calculate the length of the stream to still play
+    if (seekPos->dStopOffset > 0)
+    {
+        // Quit if start seek is past required stop offset
+        if (seekPos->dStopOffset <= dSeek)
+        {
+            RTMP_LogPrintf("Already Completed\n");
+            *nStatus = RD_SUCCESS;
+			return -1;
+        }
+    }
+
+    if (!RTMP_ConnectStream(rtmp, dSeek))
+    {
+        *nStatus = RD_FAILED;
+		return -1;
+    }
+	return 0;
+}    
+
+int RTMPCtrlC(RTMP *rtmp, int *nStatus, SeekPos *seekPos, int *bResume, uint32_t *dSeek, uint32_t *nInitialFrameSize)
+{
+    int retries = 0;
+    uint32_t bufferTime = DEF_BUFTIME;
+    RTMP_Log(RTMP_LOGDEBUG, "Setting buffer time to: %dms", bufferTime);
+    RTMP_SetBufferMS(rtmp, bufferTime);
+    *nInitialFrameSize = 0;
+    if (retries)
+    {
+        RTMP_Log(RTMP_LOGERROR, "Failed to resume the stream\n\n");
+        if (!RTMP_IsTimedout(rtmp))
+            *nStatus = RD_FAILED;
+        else
+            *nStatus = RD_INCOMPLETE;
+		return -1;
+    }
+    RTMP_Log(RTMP_LOGINFO, "Connection timed out, trying to resume.\n\n");
+    /* Did we already try pausing, and it still didn't work? */
+    if (rtmp->m_pausing == 3)
+    {
+        /* Only one try at reconnecting... */
+        retries = 1;
+        dSeek = rtmp->m_pauseStamp;
+        if (seekPos->dStopOffset > 0)
+        {
+            if (seekPos->dStopOffset <= dSeek)
+            {
+                RTMP_LogPrintf("Already Completed\n");
+                *nStatus = RD_SUCCESS;
+				return -1;
+            }
+        }
+        if (!RTMP_ReconnectStream(rtmp, dSeek))
+        {
+            RTMP_Log(RTMP_LOGERROR, "Failed to resume the stream\n\n");
+            if (!RTMP_IsTimedout(rtmp))
+                *nStatus = RD_FAILED;
+            else
+                *nStatus = RD_INCOMPLETE;
+			return -1;
+        }
+    }
+    else if (!RTMP_ToggleStream(rtmp))
+    {
+        RTMP_Log(RTMP_LOGERROR, "Failed to resume the stream\n\n");
+        if (!RTMP_IsTimedout(rtmp))
+            *nStatus = RD_FAILED;
+        else
+            *nStatus = RD_INCOMPLETE;
+		return -1;
+    }
+    *bResume = TRUE;
+
+    return 0;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -745,14 +852,13 @@ main(int argc, char **argv)
     AVal usherToken = { 0, 0 }; //Justin.tv auth token
     int port = -1;
     int protocol = RTMP_PROTOCOL_UNDEFINED;
-    int retries = 0;
+
     int bLiveStream = FALSE;    // is it a live stream? then we can't seek/resume
     int bRealtimeStream = FALSE;  // If true, disable the BUFX hack (be patient)
     int bHashes = FALSE;        // display byte counters not hashes by default
 
     long int timeout = DEF_TIMEOUT; // timeout connection after 120 seconds
-    uint32_t dStartOffset = 0;  // seek position in non-live mode
-    uint32_t dStopOffset = 0;
+    SeekPos seekPos = { 0 };
     RTMP rtmp = { 0 };
 
     AVal fullUrl = { 0, 0 };
@@ -795,13 +901,11 @@ main(int argc, char **argv)
     }
 
     RTMP_LogPrintf("RTMPDump %s\n", RTMPDUMP_VERSION);
-    RTMP_LogPrintf
-    ("(c) 2010 Andrej Stepanchuk, Howard Chu, The Flvstreamer Team; license: GPL\n");
+    RTMP_LogPrintf("(c) 2010 Andrej Stepanchuk, Howard Chu, The Flvstreamer Team; license: GPL\n");
 
     if (!InitSockets())
     {
-        RTMP_Log(RTMP_LOGERROR,
-            "Couldn't load sockets support on your platform, exiting!");
+        RTMP_Log(RTMP_LOGERROR, "Couldn't load sockets support on your platform, exiting!");
         return RD_FAILED;
     }
 
@@ -1041,10 +1145,10 @@ main(int argc, char **argv)
             timeout = atoi(optarg);
             break;
         case 'A':
-            dStartOffset = (int)(atof(optarg) * 1000.0);
+            seekPos.dStartOffset = (int)(atof(optarg) * 1000.0);
             break;
         case 'B':
-            dStopOffset = (int)(atof(optarg) * 1000.0);
+			seekPos.dStopOffset = (int)(atof(optarg) * 1000.0);
             break;
         case 'T': {
             AVal token;
@@ -1122,8 +1226,7 @@ main(int argc, char **argv)
 
     if (bStdoutMode && bResume)
     {
-        RTMP_Log(RTMP_LOGWARNING,
-            "Can't resume in stdout mode, ignoring --resume option");
+        RTMP_Log(RTMP_LOGWARNING, "Can't resume in stdout mode, ignoring --resume option");
         bResume = FALSE;
     }
 
@@ -1174,14 +1277,13 @@ main(int argc, char **argv)
     int first = 1;
 
     // User defined seek offset
-    if (dStartOffset > 0)
+    if (seekPos.dStartOffset > 0)
     {
         // Live stream
         if (bLiveStream)
         {
-            RTMP_Log(RTMP_LOGWARNING,
-                "Can't seek in a live stream, ignoring --start option");
-            dStartOffset = 0;
+            RTMP_Log(RTMP_LOGWARNING, "Can't seek in a live stream, ignoring --start option");
+			seekPos.dStartOffset = 0;
         }
     }
 
@@ -1189,7 +1291,7 @@ main(int argc, char **argv)
     {
         RTMP_SetupStream(&rtmp, protocol, &hostname, port, &sockshost, &playpath,
             &tcUrl, &swfUrl, &pageUrl, &app, &auth, &swfHash, swfSize,
-            &flashVer, &subscribepath, &usherToken, dSeek, dStopOffset, bLiveStream, timeout);
+            &flashVer, &subscribepath, &usherToken, dSeek, seekPos.dStopOffset, bLiveStream, timeout);
     }
     else
     {
@@ -1209,8 +1311,7 @@ main(int argc, char **argv)
     // ok, we have to get the timestamp of the last keyframe (only keyframes are seekable) / last audio frame (audio only streams)
     if (bResume)
     {
-        nStatus =
-            OpenResumeFile(flvFile, &file, &size, &metaHeader, &nMetaHeaderSize,
+        nStatus = OpenResumeFile(flvFile, &file, &size, &metaHeader, &nMetaHeaderSize,
                 &duration);
         if (nStatus == RD_FAILED)
             goto clean;
@@ -1218,13 +1319,13 @@ main(int argc, char **argv)
         if (!file)
         {
             // file does not exist, so go back into normal mode
-            bResume = FALSE;    // we are back in fresh file mode (otherwise finalizing file won't be done)
+            // we are back in fresh file mode (otherwise finalizing file won't be done)            
+            bResume = FALSE;
         }
         else
         {
             nStatus = GetLastKeyframe(file, nSkipKeyFrames,
-                &dSeek, &initialFrame,
-                &initialFrameType, &nInitialFrameSize);
+                &dSeek, &initialFrame, &initialFrameType, &nInitialFrameSize);
             if (nStatus == RD_FAILED)
             {
                 RTMP_Log(RTMP_LOGDEBUG, "Failed to get last keyframe.");
@@ -1233,8 +1334,7 @@ main(int argc, char **argv)
 
             if (dSeek == 0)
             {
-                RTMP_Log(RTMP_LOGDEBUG,
-                    "Last keyframe is first frame in stream, switching from resume to normal mode!");
+                RTMP_Log(RTMP_LOGDEBUG, "Last keyframe is first frame, switch to normal mode!");
                 bResume = FALSE;
             }
         }
@@ -1263,123 +1363,26 @@ main(int argc, char **argv)
     netstackdump_read = fopen("netstackdump_read", "wb");
 #endif
 
-    while (!RTMP_ctrlC)
-    {
-        RTMP_Log(RTMP_LOGDEBUG, "Setting buffer time to: %dms", bufferTime);
-        RTMP_SetBufferMS(&rtmp, bufferTime);
-
-        if (first)
+	if (RTMPCtrlCFirst(&rtmp, &nStatus, &seekPos, &bResume, &dSeek) == 0) {
+        while (!RTMP_ctrlC)
         {
-            first = 0;
-            RTMP_LogPrintf("Connecting ...\n");
-
-            if (!RTMP_Connect(&rtmp, NULL))
-            {
-                nStatus = RD_NO_CONNECT;
+            if (RTMPCtrlC(&rtmp, &nStatus, &seekPos, &bResume, &dSeek, &nInitialFrameSize) != 0) {
                 break;
             }
+            nStatus = Download(&rtmp, file, dSeek, seekPos.dStopOffset, duration, bResume,
+                metaHeader, nMetaHeaderSize, initialFrame,
+                initialFrameType, nInitialFrameSize, nSkipKeyFrames,
+                bStdoutMode, bLiveStream, bRealtimeStream, bHashes,
+                bOverrideBufferTime, bufferTime, &percent);
+            free(initialFrame);
+            initialFrame = NULL;
 
-            RTMP_Log(RTMP_LOGINFO, "Connected...");
-
-            // User defined seek offset
-            if (dStartOffset > 0)
-            {
-                // Don't need the start offset if resuming an existing file
-                if (bResume)
-                {
-                    RTMP_Log(RTMP_LOGWARNING,
-                        "Can't seek a resumed stream, ignoring --start option");
-                    dStartOffset = 0;
-                }
-                else
-                {
-                    dSeek = dStartOffset;
-                }
-            }
-
-            // Calculate the length of the stream to still play
-            if (dStopOffset > 0)
-            {
-                // Quit if start seek is past required stop offset
-                if (dStopOffset <= dSeek)
-                {
-                    RTMP_LogPrintf("Already Completed\n");
-                    nStatus = RD_SUCCESS;
-                    break;
-                }
-            }
-
-            if (!RTMP_ConnectStream(&rtmp, dSeek))
-            {
-                nStatus = RD_FAILED;
-                break;
-            }
+            /* If we succeeded, we're done.
+             */
+            if (nStatus != RD_INCOMPLETE || !RTMP_IsTimedout(&rtmp) || bLiveStream)
+                break;        
         }
-        else
-        {
-            nInitialFrameSize = 0;
-
-            if (retries)
-            {
-                RTMP_Log(RTMP_LOGERROR, "Failed to resume the stream\n\n");
-                if (!RTMP_IsTimedout(&rtmp))
-                    nStatus = RD_FAILED;
-                else
-                    nStatus = RD_INCOMPLETE;
-                break;
-            }
-            RTMP_Log(RTMP_LOGINFO, "Connection timed out, trying to resume.\n\n");
-            /* Did we already try pausing, and it still didn't work? */
-            if (rtmp.m_pausing == 3)
-            {
-                /* Only one try at reconnecting... */
-                retries = 1;
-                dSeek = rtmp.m_pauseStamp;
-                if (dStopOffset > 0)
-                {
-                    if (dStopOffset <= dSeek)
-                    {
-                        RTMP_LogPrintf("Already Completed\n");
-                        nStatus = RD_SUCCESS;
-                        break;
-                    }
-                }
-                if (!RTMP_ReconnectStream(&rtmp, dSeek))
-                {
-                    RTMP_Log(RTMP_LOGERROR, "Failed to resume the stream\n\n");
-                    if (!RTMP_IsTimedout(&rtmp))
-                        nStatus = RD_FAILED;
-                    else
-                        nStatus = RD_INCOMPLETE;
-                    break;
-                }
-            }
-            else if (!RTMP_ToggleStream(&rtmp))
-            {
-                RTMP_Log(RTMP_LOGERROR, "Failed to resume the stream\n\n");
-                if (!RTMP_IsTimedout(&rtmp))
-                    nStatus = RD_FAILED;
-                else
-                    nStatus = RD_INCOMPLETE;
-                break;
-            }
-            bResume = TRUE;
-        }
-
-        nStatus = Download(&rtmp, file, dSeek, dStopOffset, duration, bResume,
-            metaHeader, nMetaHeaderSize, initialFrame,
-            initialFrameType, nInitialFrameSize, nSkipKeyFrames,
-            bStdoutMode, bLiveStream, bRealtimeStream, bHashes,
-            bOverrideBufferTime, bufferTime, &percent);
-        free(initialFrame);
-        initialFrame = NULL;
-
-        /* If we succeeded, we're done.
-         */
-        if (nStatus != RD_INCOMPLETE || !RTMP_IsTimedout(&rtmp) || bLiveStream)
-            break;
     }
-
     if (nStatus == RD_SUCCESS)
     {
         RTMP_LogPrintf("Download complete\n");

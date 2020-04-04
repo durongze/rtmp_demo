@@ -40,6 +40,8 @@
 
 #define PACKET_SIZE 1024*1024
 
+#define RTMPGwLog(l, fmt, ...) RTMPLog(l, "GW", fmt, ##__VA_ARGS__)
+
 #ifdef WIN32
 #define InitSockets()	{\
         WORD version;			\
@@ -373,12 +375,12 @@ void processTCPrequest(STREAMING_SERVER * server,	// server socket and state (ou
 		nRead = recv(sockfd, header, 2047, 0);
 		header[2047] = '\0';
 
-		RTMP_Log(RTMP_LOGDEBUG, "%s: header: %s", __FUNCTION__, header);
+		RTMPGwLog(RTMP_LOGDEBUG, "header: %s", header);
 
 		if (strstr(header, "Range: bytes=") != 0)
 		{
 			// TODO check range starts from 0 and asking till the end.
-			RTMP_LogPrintf("%s, Range request not supported\n", __FUNCTION__);
+			RTMPGwLog("Range request not supported\n");
 			len = sprintf(buf, "HTTP/1.0 416 Requested Range Not Satisfiable%s\r\n",
 				srvhead);
 			send(sockfd, buf, len, 0);
@@ -407,7 +409,7 @@ void processTCPrequest(STREAMING_SERVER * server,	// server socket and state (ou
 	// if we got a filename from the GET method
 	if (filename != NULL)
 	{
-		RTMP_Log(RTMP_LOGDEBUG, "%s: Request header: %s", __FUNCTION__, filename);
+		RTMPGwLog(RTMP_LOGDEBUG, "Request header: %s", filename);
 		if (filename[0] == '/')
 		{			// if its not empty, is it /?
 			ptr = filename + 1;
@@ -441,11 +443,10 @@ void processTCPrequest(STREAMING_SERVER * server,	// server socket and state (ou
 					memcpy(arg, ptr, nArgLen * sizeof(char));
 					arg[nArgLen] = '\0';
 
-					//RTMP_Log(RTMP_LOGDEBUG, "%s: unescaping parameter: %s", __FUNCTION__, arg);
+					// RTMPGwLog(RTMP_LOGDEBUG, "unescaping parameter: %s", arg);
 					http_unescape(arg);
 
-					RTMP_Log(RTMP_LOGDEBUG, "%s: parameter: %c, arg: %s", __FUNCTION__,
-						ich, arg);
+					RTMPGwLog(RTMP_LOGDEBUG, "parameter: %c, arg: %s",	ich, arg);
 
 					ptr += nArgLen + 1;
 					len -= nArgLen + 1;
@@ -465,21 +466,20 @@ void processTCPrequest(STREAMING_SERVER * server,	// server socket and state (ou
 	}
 	else
 	{
-		RTMP_LogPrintf("%s: No request header received/unsupported method\n",
-			__FUNCTION__);
+		RTMPGwLog(RTMP_LOGERROR, "No request header received/unsupported method\n");
 	}
 
 	// do necessary checks right here to make sure the combined request of default values and GET parameters is correct
 	if (!req.hostname.av_len && !req.fullUrl.av_len)
 	{
-		RTMP_Log(RTMP_LOGERROR,
+		RTMPGwLog(RTMP_LOGERROR,
 			"You must specify a hostname (--host) or url (-r \"rtmp://host[:port]/playpath\") containing a hostname");
 		status = "400 Missing Hostname";
 		goto filenotfound;
 	}
 	if (req.playpath.av_len == 0 && !req.fullUrl.av_len)
 	{
-		RTMP_Log(RTMP_LOGERROR,
+		RTMPGwLog(RTMP_LOGERROR,
 			"You must specify a playpath (--playpath) or url (-r \"rtmp://host[:port]/playpath\") containing a playpath");
 		status = "400 Missing Playpath";
 		goto filenotfound;;
@@ -487,13 +487,13 @@ void processTCPrequest(STREAMING_SERVER * server,	// server socket and state (ou
 
 	if (req.protocol == RTMP_PROTOCOL_UNDEFINED && !req.fullUrl.av_len)
 	{
-		RTMP_Log(RTMP_LOGWARNING,
+		RTMPGwLog(RTMP_LOGWARNING,
 			"You haven't specified a protocol (--protocol) or rtmp url (-r), using default protocol RTMP");
 		req.protocol = RTMP_PROTOCOL_RTMP;
 	}
 	if (req.rtmpport == -1 && !req.fullUrl.av_len)
 	{
-		RTMP_Log(RTMP_LOGWARNING,
+		RTMPGwLog(RTMP_LOGWARNING,
 			"You haven't specified a port (--port) or rtmp url (-r), using default port");
 		req.rtmpport = 0;
 	}
@@ -539,7 +539,7 @@ void processTCPrequest(STREAMING_SERVER * server,	// server socket and state (ou
 	if (req.dStartOffset > 0)
 	{
 		if (req.bLiveStream)
-			RTMP_Log(RTMP_LOGWARNING,
+			RTMPGwLog(RTMP_LOGWARNING,
 				"Can't seek in a live stream, ignoring --seek option");
 		else
 			dSeek += req.dStartOffset;
@@ -547,10 +547,10 @@ void processTCPrequest(STREAMING_SERVER * server,	// server socket and state (ou
 
 	if (dSeek != 0)
 	{
-		RTMP_LogPrintf("Starting at TS: %d ms\n", dSeek);
+		RTMPGwLog(RTMP_LOGDEBUG, "Starting at TS: %d ms\n", dSeek);
 	}
 
-	RTMP_Log(RTMP_LOGDEBUG, "Setting buffer time to: %dms", req.bufferTime);
+	RTMPGwLog(RTMP_LOGDEBUG, "Setting buffer time to: %dms", req.bufferTime);
 	RTMP_Init(&rtmp);
 	RTMP_SetBufferMS(&rtmp, req.bufferTime);
 	if (!req.fullUrl.av_len)
@@ -563,7 +563,7 @@ void processTCPrequest(STREAMING_SERVER * server,	// server socket and state (ou
 	{
 		if (RTMP_SetupURL(&rtmp, req.fullUrl.av_val) == FALSE)
 		{
-			RTMP_Log(RTMP_LOGERROR, "Couldn't parse URL: %s", req.fullUrl.av_val);
+			RTMPGwLog(RTMP_LOGERROR, "Couldn't parse URL: %s", req.fullUrl.av_val);
 			return;
 		}
 	}
@@ -575,10 +575,10 @@ void processTCPrequest(STREAMING_SERVER * server,	// server socket and state (ou
 	rtmp.Link.token = req.token;
 	rtmp.m_read.timestamp = dSeek;
 
-	RTMP_LogPrintf("Connecting ... port: %d, app: %s\n", req.rtmpport, req.app.av_val);
+	RTMPGwLog(RTMP_LOGINFO, "Connecting ... port: %d, app: %s\n", req.rtmpport, req.app.av_val);
 	if (!RTMP_Connect(&rtmp, NULL))
 	{
-		RTMP_LogPrintf("%s, failed to connect!\n", __FUNCTION__);
+		RTMPGwLog(RTMP_LOGERROR, "failed to connect!\n");
 	}
 	else
 	{
@@ -597,7 +597,7 @@ void processTCPrequest(STREAMING_SERVER * server,	// server socket and state (ou
 			{
 				if ((nWritten = send(sockfd, buffer, nRead, 0)) < 0)
 				{
-					RTMP_Log(RTMP_LOGERROR, "%s, sending failed, error: %d", __FUNCTION__,
+					RTMPGwLog(RTMP_LOGERROR, "sending failed, error: %d",
 						GetSockError());
 					goto cleanup;	// we are in STREAMING_IN_PROGRESS, so we'll go to STREAMING_ACCEPTING
 				}
@@ -654,7 +654,7 @@ quit:
 	return;
 
 filenotfound:
-	RTMP_LogPrintf("%s, %s, %s\n", __FUNCTION__, status, filename);
+	RTMPGwLog(RTMP_LOGERROR, "%s, %s\n", status, filename);
 	len = sprintf(buf, "HTTP/1.0 %s%s\r\n", status, srvhead);
 	send(sockfd, buf, len, 0);
 	goto quit;
@@ -676,14 +676,14 @@ serverThread(void *arg)
 		if (sockfd > 0)
 		{
 			// Create a new process and transfer the control to that
-			RTMP_Log(RTMP_LOGDEBUG, "%s: accepted connection from %s\n", __FUNCTION__,
+			RTMPGwLog(RTMP_LOGDEBUG, "accepted connection from %s\n",
 				inet_ntoa(addr.sin_addr));
 			processTCPrequest(server, sockfd);
-			RTMP_Log(RTMP_LOGDEBUG, "%s: processed request\n", __FUNCTION__);
+			RTMPGwLog(RTMP_LOGDEBUG, "processed request\n");
 		}
 		else
 		{
-			RTMP_Log(RTMP_LOGERROR, "%s: accept failed", __FUNCTION__);
+			RTMPGwLog(RTMP_LOGERROR, "accept failed");
 		}
 	}
 	server->state = STREAMING_STOPPED;
@@ -700,7 +700,7 @@ startStreaming(const char *address, int port)
 	sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (sockfd == -1)
 	{
-		RTMP_Log(RTMP_LOGERROR, "%s, couldn't create socket", __FUNCTION__);
+		RTMPGwLog(RTMP_LOGERROR, "couldn't create socket");
 		return 0;
 	}
 
@@ -711,14 +711,14 @@ startStreaming(const char *address, int port)
 	if (bind(sockfd, (struct sockaddr *) &addr, sizeof(struct sockaddr_in)) ==
 		-1)
 	{
-		RTMP_Log(RTMP_LOGERROR, "%s, TCP bind failed for port number: %d", __FUNCTION__,
+		RTMPGwLog(RTMP_LOGERROR, "TCP bind failed for port number: %d",
 			port);
 		return 0;
 	}
 
 	if (listen(sockfd, 10) == -1)
 	{
-		RTMP_Log(RTMP_LOGERROR, "%s, listen failed", __FUNCTION__);
+		RTMPGwLog(RTMP_LOGERROR, "listen failed");
 		closesocket(sockfd);
 		return 0;
 	}
@@ -748,8 +748,8 @@ stopStreaming(STREAMING_SERVER * server)
 		}
 
 		if (closesocket(server->socket))
-			RTMP_Log(RTMP_LOGERROR, "%s: Failed to close listening socket, error %d",
-				__FUNCTION__, GetSockError());
+			RTMPGwLog(RTMP_LOGERROR, "Failed to close listening socket, error %d",
+				GetSockError());
 
 		server->state = STREAMING_STOPPED;
 	}

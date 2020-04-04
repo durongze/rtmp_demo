@@ -36,5 +36,7 @@
 #endif
 typedef TFTYPE (thrfunc)(void *arg);
 
+#define RTMPThdLog(l, fmt, ...) RTMPLog(l, "THD", fmt, ##__VA_ARGS__)
+
 THANDLE ThreadCreate(thrfunc *routine, void *args);
 #endif /* __THREAD_H__ */

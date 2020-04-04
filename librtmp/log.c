@@ -32,7 +32,7 @@
 
 #define MAX_PRINT_LEN	4096
 
-RTMP_LogLevel RTMP_debuglevel = RTMP_LOGERROR;
+RTMP_LogLevel RTMP_debuglevel = RTMP_LOGALL;
 
 static int neednl;
 
@@ -215,3 +215,4 @@ void RTMP_LogStatus(const char *format, ...)
 	fflush(fmsg);
 	neednl = 1;
 }
+

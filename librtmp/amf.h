@@ -157,6 +157,7 @@ extern "C"
   void AMF3CD_AddProp(AMF3ClassDef * cd, AVal * prop);
   AVal *AMF3CD_GetProp(AMF3ClassDef * cd, int idx);
 
+#define RTMPAmfLog(l, fmt, ...) RTMPLog(l, "AMF", fmt, ##__VA_ARGS__)
 #ifdef __cplusplus
 }
 #endif

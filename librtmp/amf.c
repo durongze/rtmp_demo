@@ -412,7 +412,7 @@ AMFProp_Encode(AMFObjectProperty *prop, char *pBuffer, char *pBufEnd)
       break;
 
     default:
-      RTMP_Log(RTMP_LOGERROR, "%s, invalid type. %d", __FUNCTION__, prop->p_type);
+      RTMPAmfLog(RTMP_LOGERROR, "invalid type. %d", prop->p_type);
       pBuffer = NULL;
     };
 
@@ -475,9 +475,9 @@ AMF3ReadString(const char *data, AVal *str)
   if ((ref & 0x1) == 0)
     {				/* reference: 0xxx */
       uint32_t refIndex = (ref >> 1);
-      RTMP_Log(RTMP_LOGDEBUG,
-	  "%s, string reference, index: %d, not supported, ignoring!",
-	  __FUNCTION__, refIndex);
+      RTMPAmfLog(RTMP_LOGDEBUG,
+	  "string reference, index: %d, not supported, ignoring!",
+	  refIndex);
 	  str->av_val = NULL;
 	  str->av_len = 0;
       return len;
@@ -605,8 +605,8 @@ AMF3Prop_Decode(AMFObjectProperty *prop, const char *pBuffer, int nSize,
     case AMF3_ARRAY:
     case AMF3_BYTE_ARRAY:
     default:
-      RTMP_Log(RTMP_LOGDEBUG, "%s - AMF3 unknown/unsupported datatype 0x%02x, @%p",
-	  __FUNCTION__, (unsigned char)(*pBuffer), pBuffer);
+      RTMPAmfLog(RTMP_LOGDEBUG, "AMF3 unknown/unsupported datatype 0x%02x, @%p",
+	  (unsigned char)(*pBuffer), pBuffer);
       return -1;
     }
   if (nSize < 0)
@@ -627,15 +627,14 @@ AMFProp_Decode(AMFObjectProperty *prop, const char *pBuffer, int nSize,
 
   if (nSize == 0 || !pBuffer)
     {
-      RTMP_Log(RTMP_LOGDEBUG, "%s: Empty buffer/no buffer pointer!", __FUNCTION__);
+      RTMPAmfLog(RTMP_LOGDEBUG, "Empty buffer/no buffer pointer!");
       return -1;
     }
 
   if (bDecodeName && nSize < 4)
     {				/* at least name (length + at least 1 byte) and 1 byte of data */
-      RTMP_Log(RTMP_LOGDEBUG,
-	  "%s: Not enough data for decoding with name, less than 4 bytes!",
-	  __FUNCTION__);
+      RTMPAmfLog(RTMP_LOGDEBUG,
+	  "Not enough data for decoding with name, less than 4 bytes!");
       return -1;
     }
 
@@ -644,9 +643,9 @@ AMFProp_Decode(AMFObjectProperty *prop, const char *pBuffer, int nSize,
       unsigned short nNameSize = AMF_DecodeInt16(pBuffer);
       if (nNameSize > nSize - 2)
 	{
-	  RTMP_Log(RTMP_LOGDEBUG,
-	      "%s: Name size out of range: namesize (%d) > len (%d) - 2",
-	      __FUNCTION__, nNameSize, nSize);
+	  RTMPAmfLog(RTMP_LOGDEBUG,
+	      "Name size out of range: namesize (%d) > len (%d) - 2",
+	      nNameSize, nSize);
 	  return -1;
 	}
 
@@ -787,8 +786,8 @@ AMFProp_Decode(AMFObjectProperty *prop, const char *pBuffer, int nSize,
 	break;
       }
     default:
-      RTMP_Log(RTMP_LOGDEBUG, "%s - unknown datatype 0x%02x, @%p", __FUNCTION__,
-	  prop->p_type, pBuffer - 1);
+      RTMPAmfLog(RTMP_LOGDEBUG, "unknown datatype 0x%02x, @%p", 
+      prop->p_type, pBuffer - 1);
       return -1;
     }
 
@@ -1100,12 +1099,11 @@ AMF3_Decode(AMFObject *obj, const char *pBuffer, int nSize, int bAMFData)
 	      if (nSize <=0)
 		{
 invalid:
-		  RTMP_Log(RTMP_LOGDEBUG, "%s, invalid class encoding!",
-		    __FUNCTION__);
+		  RTMPAmfLog(RTMP_LOGDEBUG, "invalid class encoding!");
 		  return nOriginalSize;
 		}
 	      len = AMF3ReadString(pBuffer, &memberName);
-	      RTMP_Log(RTMP_LOGDEBUG, "Member: %s", memberName.av_val);
+	      RTMPAmfLog(RTMP_LOGDEBUG, "Member: %s", memberName.av_val);
 	      AMF3CD_AddProp(&cd, &memberName);
 	      nSize -= len;
 	      pBuffer += len;
@@ -1123,8 +1121,7 @@ invalid:
 
 	  nRes = AMF3Prop_Decode(&prop, pBuffer, nSize, FALSE);
 	  if (nRes == -1)
-	    RTMP_Log(RTMP_LOGDEBUG, "%s, failed to decode AMF3 property!",
-		__FUNCTION__);
+	    RTMPAmfLog(RTMP_LOGDEBUG, "failed to decode AMF3 property!");
 	  else
 	    {
 	      nSize -= nRes;
@@ -1143,8 +1140,7 @@ invalid:
 	        goto invalid;
 	      nRes = AMF3Prop_Decode(&prop, pBuffer, nSize, FALSE);
 	      if (nRes == -1)
-		RTMP_Log(RTMP_LOGDEBUG, "%s, failed to decode AMF3 property!",
-		    __FUNCTION__);
+		RTMPAmfLog(RTMP_LOGDEBUG, "failed to decode AMF3 property!");
 
 	      AMFProp_SetName(&prop, AMF3CD_GetProp(&cd, i));
 	      AMF_AddProp(obj, &prop);

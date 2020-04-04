@@ -49,6 +49,8 @@
 
 #define PACKET_SIZE 1024*1024
 
+#define RTMPSuckLog(l, fmt, ...) RTMPLog(l, "SUCK", fmt, ##__VA_ARGS__)
+
 #ifdef WIN32
 #define InitSockets()	{\
         WORD version;			\
@@ -165,8 +167,7 @@ ServeInvoke(STREAMING_SERVER *server, int which, RTMPPacket *pack, const char *b
 
 	if (body[0] != 0x02)		// make sure it is a string method name we start with
 	{
-		RTMP_Log(RTMP_LOGWARNING, "%s, Sanity failed. no string method in invoke packet",
-			__FUNCTION__);
+		RTMPSuckLog(RTMP_LOGWARNING, "Sanity failed. no string method in invoke packet");
 		return 0;
 	}
 
@@ -174,14 +175,14 @@ ServeInvoke(STREAMING_SERVER *server, int which, RTMPPacket *pack, const char *b
 	nRes = AMF_Decode(&obj, body, nBodySize, FALSE);
 	if (nRes < 0)
 	{
-		RTMP_Log(RTMP_LOGERROR, "%s, error decoding invoke packet", __FUNCTION__);
+		RTMPSuckLog(RTMP_LOGERROR, "error decoding invoke packet");
 		return 0;
 	}
 
 	AMF_Dump(&obj);
 	AVal method;
 	AMFProp_GetString(AMF_GetProp(&obj, NULL, 0), &method);
-	RTMP_Log(RTMP_LOGDEBUG, "%s, %s invoking <%s>", __FUNCTION__, cst[which], method.av_val);
+	RTMPSuckLog(RTMP_LOGDEBUG, "%s invoking <%s>", cst[which], method.av_val);
 
 	if (AVMATCH(&method, &av_connect))
 	{
@@ -405,7 +406,7 @@ ServeInvoke(STREAMING_SERVER *server, int which, RTMPPacket *pack, const char *b
 		AMFProp_GetString(AMF_GetProp(&obj2, &av_code, -1), &code);
 		AMFProp_GetString(AMF_GetProp(&obj2, &av_level, -1), &level);
 
-		RTMP_Log(RTMP_LOGDEBUG, "%s, onStatus: %s", __FUNCTION__, code.av_val);
+		RTMPSuckLog(RTMP_LOGDEBUG, "onStatus: %s", code.av_val);
 		if (AVMATCH(&code, &av_NetStream_Failed)
 			|| AVMATCH(&code, &av_NetStream_Play_Failed)
 			|| AVMATCH(&code, &av_NetStream_Play_StreamNotFound)
@@ -456,7 +457,7 @@ ServePacket(STREAMING_SERVER *server, int which, RTMPPacket *packet)
 {
 	int ret = 0;
 
-	RTMP_Log(RTMP_LOGDEBUG, "%s, %s sent packet type %02X, size %u bytes", __FUNCTION__,
+	RTMPSuckLog(RTMP_LOGDEBUG, "%s sent packet type %02X, size %u bytes",
 		cst[which], packet->m_packetType, packet->m_nBodySize);
 
 	switch (packet->m_packetType)
@@ -487,12 +488,12 @@ ServePacket(STREAMING_SERVER *server, int which, RTMPPacket *packet)
 
 	case RTMP_PACKET_TYPE_AUDIO:
 		// audio data
-		//RTMP_Log(RTMP_LOGDEBUG, "%s, received: audio %lu bytes", __FUNCTION__, packet.m_nBodySize);
+		// RTMPSuckLog(RTMP_LOGDEBUG, "received: audio %lu bytes", packet.m_nBodySize);
 		break;
 
 	case RTMP_PACKET_TYPE_VIDEO:
 		// video data
-		//RTMP_Log(RTMP_LOGDEBUG, "%s, received: video %lu bytes", __FUNCTION__, packet.m_nBodySize);
+		// RTMPSuckLog(RTMP_LOGDEBUG, "received: video %lu bytes", packet.m_nBodySize);
 		break;
 
 	case RTMP_PACKET_TYPE_FLEX_STREAM_SEND:
@@ -527,7 +528,7 @@ ServePacket(STREAMING_SERVER *server, int which, RTMPPacket *packet)
 		break;
 
 	default:
-		RTMP_Log(RTMP_LOGDEBUG, "%s, unknown packet type received: 0x%02x", __FUNCTION__,
+		RTMPSuckLog(RTMP_LOGDEBUG, "unknown packet type received: 0x%02x",
 			packet->m_packetType);
 #ifdef _DEBUG
 		RTMP_LogHex(RTMP_LOGDEBUG, packet->m_body, packet->m_nBodySize);
@@ -845,7 +846,7 @@ TFTYPE doServe(void *arg)	// server socket and state (our listening socket)
 						if (ps.m_nBodySize >= 4)
 						{
 							server->rs.m_inChunkSize = AMF_DecodeInt32(ps.m_body);
-							RTMP_Log(RTMP_LOGDEBUG, "%s, client: chunk size change to %d", __FUNCTION__,
+							RTMPSuckLog(RTMP_LOGDEBUG, "client: chunk size change to %d",
 								server->rs.m_inChunkSize);
 							server->rc.m_outChunkSize = server->rs.m_inChunkSize;
 						}
@@ -856,7 +857,7 @@ TFTYPE doServe(void *arg)	// server socket and state (our listening socket)
 						if (ps.m_nBodySize >= 4)
 						{
 							int count = AMF_DecodeInt32(ps.m_body);
-							RTMP_Log(RTMP_LOGDEBUG, "%s, client: bytes received = %d", __FUNCTION__,
+							RTMPSuckLog(RTMP_LOGDEBUG, "client: bytes received = %d",
 								count);
 						}
 					}
@@ -882,7 +883,7 @@ TFTYPE doServe(void *arg)	// server socket and state (our listening socket)
 									AMF_EncodeInt32(ptr + 4, ptr + 8, BUFFERTIME);
 								}
 #endif
-								RTMP_Log(RTMP_LOGDEBUG, "%s, client: BufferTime change in stream %d to %d", __FUNCTION__,
+								RTMPSuckLog(RTMP_LOGDEBUG, "client: BufferTime change in stream %d to %d",
 									id, len);
 							}
 						}
@@ -922,7 +923,7 @@ TFTYPE doServe(void *arg)	// server socket and state (our listening socket)
 						if (pc.m_nBodySize >= 4)
 						{
 							server->rc.m_inChunkSize = AMF_DecodeInt32(pc.m_body);
-							RTMP_Log(RTMP_LOGDEBUG, "%s, server: chunk size change to %d", __FUNCTION__,
+							RTMPSuckLog(RTMP_LOGDEBUG, "server: chunk size change to %d",
 								server->rc.m_inChunkSize);
 							server->rs.m_outChunkSize = server->rc.m_inChunkSize;
 						}
@@ -940,7 +941,7 @@ TFTYPE doServe(void *arg)	// server socket and state (our listening socket)
 							}
 #else
 							/* The session will certainly fail right after this */
-							RTMP_Log(RTMP_LOGERROR, "%s, server requested SWF verification, need CRYPTO support! ", __FUNCTION__);
+							RTMPSuckLog(RTMP_LOGERROR, "server requested SWF verification, need CRYPTO support! ");
 #endif
 					}
 					else if (server->f_cur && (
@@ -1031,21 +1032,21 @@ serverThread(void *arg)
 			socklen_t destlen = sizeof(struct sockaddr_in);
 			getsockopt(sockfd, SOL_IP, SO_ORIGINAL_DST, &dest, &destlen);
 			strcpy(destch, inet_ntoa(dest.sin_addr));
-			RTMP_Log(RTMP_LOGDEBUG, "%s: accepted connection from %s to %s\n", __FUNCTION__,
+			RTMPSuckLog(RTMP_LOGDEBUG, "accepted connection from %s to %s\n",
 				inet_ntoa(addr.sin_addr), destch);
 #else
-			RTMP_Log(RTMP_LOGDEBUG, "%s: accepted connection from %s\n", __FUNCTION__,
+			RTMPSuckLog(RTMP_LOGDEBUG, "accepted connection from %s\n",
 				inet_ntoa(addr.sin_addr));
 #endif
 			*srv2 = *server;
 			srv2->socket = sockfd;
 			/* Create a new thread and transfer the control to that */
 			ThreadCreate(doServe, srv2);
-			RTMP_Log(RTMP_LOGDEBUG, "%s: processed request\n", __FUNCTION__);
+			RTMPSuckLog(RTMP_LOGDEBUG, "processed request\n");
 		}
 		else
 		{
-			RTMP_Log(RTMP_LOGERROR, "%s: accept failed", __FUNCTION__);
+			RTMPSuckLog(RTMP_LOGERROR, "accept failed");
 		}
 	}
 	server->state = STREAMING_STOPPED;
@@ -1062,7 +1063,7 @@ startStreaming(const char *address, int port)
 	sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (sockfd == -1)
 	{
-		RTMP_Log(RTMP_LOGERROR, "%s, couldn't create socket", __FUNCTION__);
+		RTMPSuckLog(RTMP_LOGERROR, "couldn't create socket");
 		return 0;
 	}
 
@@ -1077,14 +1078,14 @@ startStreaming(const char *address, int port)
 	if (bind(sockfd, (struct sockaddr *) &addr, sizeof(struct sockaddr_in)) ==
 		-1)
 	{
-		RTMP_Log(RTMP_LOGERROR, "%s, TCP bind failed for port number: %d", __FUNCTION__,
+		RTMPSuckLog(RTMP_LOGERROR, "TCP bind failed for port number: %d",
 			port);
 		return 0;
 	}
 
 	if (listen(sockfd, 10) == -1)
 	{
-		RTMP_Log(RTMP_LOGERROR, "%s, listen failed", __FUNCTION__);
+		RTMPSuckLog(RTMP_LOGERROR, "listen failed");
 		closesocket(sockfd);
 		return 0;
 	}
@@ -1116,8 +1117,8 @@ stopStreaming(STREAMING_SERVER * server)
 		}
 
 		if (fd && closesocket(fd))
-			RTMP_Log(RTMP_LOGERROR, "%s: Failed to close listening socket, error %d",
-				__FUNCTION__, GetSockError());
+			RTMPSuckLog(RTMP_LOGERROR, "Failed to close listening socket, error %d",
+				GetSockError());
 
 		server->state = STREAMING_STOPPED;
 	}

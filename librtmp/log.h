@@ -62,6 +62,8 @@ void RTMP_LogHexString(int level, const uint8_t *data, unsigned long len);
 void RTMP_LogSetLevel(RTMP_LogLevel lvl);
 RTMP_LogLevel RTMP_LogGetLevel(void);
 
+#define RTMPLog(l, m, fmt, ...) RTMP_Log(l, "%s[%s:%d]" fmt, m, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+
 #ifdef __cplusplus
 }
 #endif

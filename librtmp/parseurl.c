@@ -76,6 +76,10 @@ void RTMP_Show(RTMP rtmp)
 	RTMP_Log(RTMP_LOGDEBUG, "m_polling:%d\n", rtmp.m_polling);
 	RTMP_Log(RTMP_LOGDEBUG, "m_resplen:%d\n", rtmp.m_resplen);
 	RTMP_Log(RTMP_LOGDEBUG, "m_unackd:%d\n", rtmp.m_unackd);
+    if (rtmp.m_clientID.av_val)
+    RTMP_Log(RTMP_LOGDEBUG, "m_clientID:%s\n", rtmp.m_clientID.av_val);
+    RTMPPacket_Dump(&rtmp.m_write);
+    RTMPSockBuf_Dump(&rtmp.m_sb);
 }
 
 int RTMP_ParseURL(const char *url, int *protocol, AVal *host, unsigned int *port,

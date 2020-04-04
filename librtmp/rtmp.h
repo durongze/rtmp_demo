@@ -103,6 +103,8 @@ extern "C"
 #define RTMP_PACKET_SIZE_SMALL    2
 #define RTMP_PACKET_SIZE_MINIMUM  3
 
+#define RTMPLibLog(l, fmt, ...) RTMPLog(l, "RTMP", fmt, ##__VA_ARGS__)
+
   typedef struct RTMPChunk
   {
     int c_headerSize;

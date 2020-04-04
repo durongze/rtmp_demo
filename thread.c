@@ -33,7 +33,7 @@ ThreadCreate(thrfunc *routine, void *args)
 
 	thd = (HANDLE)_beginthread(routine, 0, args);
 	if (thd == -1L)
-		RTMP_LogPrintf("%s, _beginthread failed with %d\n", __FUNCTION__, errno);
+		RTMPThdLog(RTMP_LOGERROR, "_beginthread failed with %d\n", errno);
 
 	return thd;
 }
@@ -48,10 +48,9 @@ ThreadCreate(thrfunc *routine, void *args)
 	pthread_attr_init(&attributes);
 	pthread_attr_setdetachstate(&attributes, PTHREAD_CREATE_DETACHED);
 
-	ret =
-		pthread_create(&id, &attributes, routine, args);
+	ret = pthread_create(&id, &attributes, routine, args);
 	if (ret != 0)
-		RTMP_LogPrintf("%s, pthread_create failed with %d\n", __FUNCTION__, ret);
+		RTMPThdLog(RTMP_LOGERROR, "pthread_create failed with %d\n", ret);
 
 	return id;
 }

@@ -53,6 +53,8 @@
 #define DEF_BUFTIME (10 * 60 * 60 * 1000)   /* 10 hours default */
 #define DEF_SKIPFRM 0
 
+#define RTMPDmpLog(l, fmt, ...) RTMPLog(l, "DUMP", fmt, ##__VA_ARGS__)
+
  // starts sockets
 int
 InitSockets()
@@ -227,8 +229,7 @@ OpenResumeFile(const char *flvFile, // file name [in]
                 int nRes = AMF_Decode(&metaObj, buffer, dataSize, FALSE);
                 if (nRes < 0)
                 {
-                    RTMP_Log(RTMP_LOGERROR, "%s, error decoding meta data packet",
-                        __FUNCTION__);
+                    RTMPDmpLog(RTMP_LOGERROR, "error decoding meta data packet");
                     break;
                 }
 
@@ -520,7 +521,7 @@ Download(RTMP * rtmp,       // connected RTMP object
             if (fwrite(buffer, sizeof(unsigned char), nRead, file) !=
                 (size_t)nRead)
             {
-                RTMP_Log(RTMP_LOGERROR, "%s: Failed writing, exiting!", __FUNCTION__);
+                RTMPDmpLog(RTMP_LOGERROR, "Failed writing, exiting!");
                 free(buffer);
                 return RD_FAILED;
             }

@@ -220,11 +220,24 @@ RTMPPacket_Alloc(RTMPPacket *p, uint32_t nSize)
 void
 RTMPPacket_Free(RTMPPacket *p)
 {
-    if (p->m_body)
+    if (p&&p->m_body)
     {
         free(p->m_body - RTMP_MAX_HEADER_SIZE);
         p->m_body = NULL;
     }
+}
+
+void RTMP_READ_Show(RTMP_READ* rtmp)
+{
+    if (rtmp&&rtmp->buf)
+        RTMP_LogHex(RTMP_LOGDEBUG, rtmp->buf, rtmp->buflen);
+}
+
+void
+RTMPSockBuf_Dump(RTMPSockBuf* sockbuf)
+{
+    if (sockbuf&&sockbuf->sb_buf)
+        RTMP_LogHex(RTMP_LOGDEBUG, sockbuf->sb_buf, sockbuf->sb_size);
 }
 
 void
@@ -628,7 +641,7 @@ static void RTMP_OptUsage()
 {
     int i;
 
-    RTMP_Log(RTMP_LOGERROR, "Valid RTMP options are:\n");
+    RTMPLibLog(RTMP_LOGERROR, "Valid RTMP options are:\n");
     for (i = 0; options[i].name.av_len; i++) {
         RTMP_Log(RTMP_LOGERROR, "%10s %-7s  %s\n", options[i].name.av_val,
             optinfo[options[i].otype], options[i].use);
@@ -765,7 +778,7 @@ int RTMP_SetOpt(RTMP *r, const AVal *opt, AVal *arg)
         break;
     }
     if (!options[i].name.av_len) {
-        RTMP_Log(RTMP_LOGERROR, "Unknown option %s", opt->av_val);
+        RTMPLibLog(RTMP_LOGERROR, "Unknown option %s", opt->av_val);
         RTMP_OptUsage();
         return FALSE;
     }
@@ -909,7 +922,7 @@ add_addr_info(struct sockaddr_in *service, AVal *host, int port)
         struct hostent *host = gethostbyname(hostname);
         if (host == NULL || host->h_addr == NULL)
         {
-            RTMP_Log(RTMP_LOGERROR, "Problem accessing the DNS. (addr: %s)", hostname);
+            RTMPLibLog(RTMP_LOGERROR, "Problem accessing the DNS. (addr: %s)", hostname);
             ret = FALSE;
             goto finish;
         }
@@ -937,18 +950,18 @@ RTMP_Connect0(RTMP *r, struct sockaddr * service)
         if (connect(r->m_sb.sb_socket, service, sizeof(struct sockaddr)) < 0)
         {
             int err = GetSockError();
-            RTMP_Log(RTMP_LOGERROR, "%s, failed to connect socket. %d (%s)",
-                __FUNCTION__, err, strerror(err));
+            RTMPLibLog(RTMP_LOGERROR, "failed to connect socket. %d (%s)",
+                err, strerror(err));
             RTMP_Close(r);
             return FALSE;
         }
 
         if (r->Link.socksport)
         {
-            RTMP_Log(RTMP_LOGDEBUG, "%s ... SOCKS negotiation", __FUNCTION__);
+            RTMPLibLog(RTMP_LOGDEBUG, "SOCKS negotiation");
             if (!SocksNegotiate(r))
             {
-                RTMP_Log(RTMP_LOGERROR, "%s, SOCKS negotiation failed.", __FUNCTION__);
+                RTMPLibLog(RTMP_LOGERROR, "SOCKS negotiation failed.");
                 RTMP_Close(r);
                 return FALSE;
             }
@@ -956,7 +969,7 @@ RTMP_Connect0(RTMP *r, struct sockaddr * service)
     }
     else
     {
-        RTMP_Log(RTMP_LOGERROR, "%s, failed to create socket. Error: %d", __FUNCTION__,
+        RTMPLibLog(RTMP_LOGERROR, "failed to create socket. Error: %d",
             GetSockError());
         return FALSE;
     }
@@ -967,8 +980,8 @@ RTMP_Connect0(RTMP *r, struct sockaddr * service)
         if (setsockopt
         (r->m_sb.sb_socket, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof(tv)))
         {
-            RTMP_Log(RTMP_LOGERROR, "%s, Setting socket timeout to %ds failed!",
-                __FUNCTION__, r->Link.timeout);
+            RTMPLibLog(RTMP_LOGERROR, "Setting socket timeout to %ds failed!",
+                r->Link.timeout);
         }
     }
 
@@ -985,7 +998,7 @@ RTMP_TLS_Accept(RTMP *r, void *ctx)
     TLS_setfd(r->m_sb.sb_ssl, r->m_sb.sb_socket);
     if (TLS_accept(r->m_sb.sb_ssl) < 0)
     {
-        RTMP_Log(RTMP_LOGERROR, "%s, TLS_Connect failed", __FUNCTION__);
+        RTMPLibLog(RTMP_LOGERROR, "TLS_Connect failed");
         return FALSE;
     }
     return TRUE;
@@ -1004,12 +1017,12 @@ RTMP_Connect1(RTMP *r, RTMPPacket *cp)
         TLS_setfd(r->m_sb.sb_ssl, r->m_sb.sb_socket);
         if (TLS_connect(r->m_sb.sb_ssl) < 0)
         {
-            RTMP_Log(RTMP_LOGERROR, "%s, TLS_Connect failed", __FUNCTION__);
+            RTMPLibLog(RTMP_LOGERROR, "TLS_Connect failed");
             RTMP_Close(r);
             return FALSE;
         }
 #else
-        RTMP_Log(RTMP_LOGERROR, "%s, no SSL/TLS support", __FUNCTION__);
+        RTMPLibLog(RTMP_LOGERROR, "no SSL/TLS support");
         RTMP_Close(r);
         return FALSE;
 
@@ -1024,24 +1037,24 @@ RTMP_Connect1(RTMP *r, RTMPPacket *cp)
         if (HTTP_read(r, 1) != 0)
         {
             r->m_msgCounter = 0;
-            RTMP_Log(RTMP_LOGDEBUG, "%s, Could not connect for handshake", __FUNCTION__);
+            RTMPLibLog(RTMP_LOGDEBUG, "Could not connect for handshake");
             RTMP_Close(r);
             return 0;
         }
         r->m_msgCounter = 0;
     }
-    RTMP_Log(RTMP_LOGDEBUG, "%s, ... connected, handshaking", __FUNCTION__);
+    RTMPLibLog(RTMP_LOGDEBUG, "connected, handshaking");
     if (!HandShake(r, TRUE))
     {
-        RTMP_Log(RTMP_LOGERROR, "%s, handshake failed.", __FUNCTION__);
+        RTMPLibLog(RTMP_LOGERROR, "handshake failed.");
         RTMP_Close(r);
         return FALSE;
     }
-    RTMP_Log(RTMP_LOGDEBUG, "%s, handshaked", __FUNCTION__);
+    RTMPLibLog(RTMP_LOGDEBUG, "handshaked");
 
     if (!SendConnectPacket(r, cp))
     {
-        RTMP_Log(RTMP_LOGERROR, "%s, RTMP connect failed.", __FUNCTION__);
+        RTMPLibLog(RTMP_LOGERROR, "RTMP connect failed.");
         RTMP_Close(r);
         return FALSE;
     }
@@ -1110,7 +1123,7 @@ SocksNegotiate(RTMP *r)
         }
         else
         {
-            RTMP_Log(RTMP_LOGERROR, "%s, SOCKS returned error code %d", __FUNCTION__, packet[1]);
+            RTMPLibLog(RTMP_LOGERROR, "SOCKS returned error code %d", packet[1]);
             return FALSE;
         }
     }
@@ -1248,8 +1261,8 @@ RTMP_ClientPacket(RTMP *r, RTMPPacket *packet)
 {
     int bHasMediaPacket = 0;
     
-    RTMP_Log(RTMP_LOGDEBUG, "%s, packet type received: 0x%02x", 
-        __FUNCTION__, packet->m_packetType);
+    RTMPLibLog(RTMP_LOGDEBUG, "packet type received: 0x%02x", 
+        packet->m_packetType);
     RTMP_LogHex(RTMP_LOGDEBUG2, packet->m_body, packet->m_nBodySize); 
     switch (packet->m_packetType)
     {
@@ -1387,7 +1400,7 @@ ReadN(RTMP *r, char *buffer, int n)
                 }
                 if ((ret = HTTP_read(r, 0)) == -1)
                 {
-                    RTMP_Log(RTMP_LOGDEBUG, "%s, No valid HTTP response found", __FUNCTION__);
+                    RTMPLibLog(RTMP_LOGDEBUG, "No valid HTTP response found");
                     RTMP_Close(r);
                     return 0;
                 }
@@ -1433,14 +1446,14 @@ ReadN(RTMP *r, char *buffer, int n)
                 if (!SendBytesReceived(r))
                     return FALSE;
         }
-        RTMP_Log(RTMP_LOGDEBUG, "%s: %d bytes\n", __FUNCTION__, nBytes); 
+        RTMPLibLog(RTMP_LOGDEBUG, "%d bytes\n", nBytes); 
 #ifdef _DEBUG
         fwrite(ptr, 1, nBytes, netstackdump_read);
 #endif
 
         if (nBytes == 0)
         {
-            RTMP_Log(RTMP_LOGDEBUG, "%s, RTMP socket closed by peer", __FUNCTION__);
+            RTMPLibLog(RTMP_LOGDEBUG, "RTMP socket closed by peer");
             /*goto again; */
             RTMP_Close(r);
             break;
@@ -1490,12 +1503,12 @@ WriteN(RTMP *r, const char *buffer, int n)
             nBytes = HTTP_Post(r, RTMPT_SEND, ptr, n);
         else
             nBytes = RTMPSockBuf_Send(&r->m_sb, ptr, n);
-        /*RTMP_Log(RTMP_LOGDEBUG, "%s: %d\n", __FUNCTION__, nBytes); */
+        /*RTMPLibLog(RTMP_LOGDEBUG, "%d\n", nBytes); */
 
         if (nBytes < 0)
         {
             int sockerr = GetSockError();
-            RTMP_Log(RTMP_LOGERROR, "%s, RTMP send error %d (%d bytes)", __FUNCTION__,
+            RTMPLibLog(RTMP_LOGERROR, "RTMP send error %d (%d bytes)",
                 sockerr, n);
 
             if (sockerr == EINTR && !RTMP_ctrlC)
@@ -1957,7 +1970,7 @@ RTMP_SendPause(RTMP *r, int DoPause, int iTime)
 
     packet.m_nBodySize = enc - packet.m_body;
 
-    RTMP_Log(RTMP_LOGDEBUG, "%s, %d, pauseTime=%d", __FUNCTION__, DoPause, iTime);
+    RTMPLibLog(RTMP_LOGDEBUG, "%d, pauseTime=%d", DoPause, iTime);
     return RTMP_SendPacket(r, &packet, TRUE);
 }
 
@@ -2170,8 +2183,8 @@ SendPlay(RTMP *r)
     enc = AMF_EncodeNumber(enc, pend, ++r->m_numInvokes);
     *enc++ = AMF_NULL;
 
-    RTMP_Log(RTMP_LOGDEBUG, "%s, seekTime=%d, stopTime=%d, sending play: %s",
-        __FUNCTION__, r->Link.seekTime, r->Link.stopTime,
+    RTMPLibLog(RTMP_LOGDEBUG, "seekTime=%d, stopTime=%d, sending play: %s",
+        r->Link.seekTime, r->Link.stopTime,
         r->Link.playpath.av_val);
     enc = AMF_EncodeString(enc, pend, &r->Link.playpath);
     if (!enc)
@@ -2412,7 +2425,7 @@ b64enc(const unsigned char *input, int length, char *output, int maxsize)
     }
     else
     {
-        RTMP_Log(RTMP_LOGDEBUG, "%s, error", __FUNCTION__);
+        RTMPLibLog(RTMP_LOGDEBUG, "error");
         return 0;
     }
 #elif defined(USE_GNUTLS)
@@ -2420,7 +2433,7 @@ b64enc(const unsigned char *input, int length, char *output, int maxsize)
         base64_encode_raw((uint8_t*)output, length, input);
     else
     {
-        RTMP_Log(RTMP_LOGDEBUG, "%s, error", __FUNCTION__);
+        RTMPLibLog(RTMP_LOGDEBUG, "error");
         return 0;
     }
 #else   /* USE_OPENSSL */
@@ -2439,7 +2452,7 @@ b64enc(const unsigned char *input, int length, char *output, int maxsize)
     }
     else
     {
-        RTMP_Log(RTMP_LOGDEBUG, "%s, error", __FUNCTION__);
+        RTMPLibLog(RTMP_LOGDEBUG, "error");
         return 0;
     }
     BIO_free_all(b64);
@@ -2507,7 +2520,7 @@ PublisherAuth(RTMP *r, AVal *description)
         if (strstr(description->av_val, "code=403 need auth") != NULL)
         {
             if (strstr(r->Link.app.av_val, av_authmod_adobe.av_val) != NULL) {
-                RTMP_Log(RTMP_LOGERROR, "%s, wrong pubUser & pubPasswd for publisher auth", __FUNCTION__);
+                RTMPLibLog(RTMP_LOGERROR, "wrong pubUser & pubPasswd for publisher auth");
                 return 0;
             }
             else if (r->Link.pubUser.av_len && r->Link.pubPasswd.av_len) {
@@ -2515,10 +2528,10 @@ PublisherAuth(RTMP *r, AVal *description)
                 pubToken.av_len = sprintf(pubToken.av_val, "?%s&user=%s",
                     av_authmod_adobe.av_val,
                     r->Link.pubUser.av_val);
-                RTMP_Log(RTMP_LOGDEBUG, "%s, pubToken1: %s", __FUNCTION__, pubToken.av_val);
+                RTMPLibLog(RTMP_LOGDEBUG, "pubToken1: %s", pubToken.av_val);
             }
             else {
-                RTMP_Log(RTMP_LOGERROR, "%s, need to set pubUser & pubPasswd for publisher auth", __FUNCTION__);
+                RTMPLibLog(RTMP_LOGERROR, "need to set pubUser & pubPasswd for publisher auth");
                 return 0;
             }
         }
@@ -2562,7 +2575,7 @@ PublisherAuth(RTMP *r, AVal *description)
                     aptr = &challenge;
                 }
 
-                RTMP_Log(RTMP_LOGDEBUG, "%s, par:\"%s\" = val:\"%s\"", __FUNCTION__, par, val);
+                RTMPLibLog(RTMP_LOGDEBUG, "par:\"%s\" = val:\"%s\"", par, val);
             }
             if (aptr)
                 aptr->av_len = strlen(aptr->av_val);
@@ -2573,17 +2586,17 @@ PublisherAuth(RTMP *r, AVal *description)
             MD5_Update(&md5ctx, salt.av_val, salt.av_len);
             MD5_Update(&md5ctx, r->Link.pubPasswd.av_val, r->Link.pubPasswd.av_len);
             MD5_Final(md5sum_val, &md5ctx);
-            RTMP_Log(RTMP_LOGDEBUG, "%s, md5(%s%s%s) =>", __FUNCTION__,
+            RTMPLibLog(RTMP_LOGDEBUG, "md5(%s%s%s) =>",
                 user.av_val, salt.av_val, r->Link.pubPasswd.av_val);
             RTMP_LogHexString(RTMP_LOGDEBUG, md5sum_val, MD5_DIGEST_LENGTH);
 
             b64enc(md5sum_val, MD5_DIGEST_LENGTH, salted2, SALTED2_LEN);
-            RTMP_Log(RTMP_LOGDEBUG, "%s, b64(md5_1) = %s", __FUNCTION__, salted2);
+            RTMPLibLog(RTMP_LOGDEBUG, "b64(md5_1) = %s", salted2);
 
             challenge2_data = rand();
 
             b64enc((unsigned char *)&challenge2_data, sizeof(int), challenge2, CHALLENGE2_LEN);
-            RTMP_Log(RTMP_LOGDEBUG, "%s, b64(%d) = %s", __FUNCTION__, challenge2_data, challenge2);
+            RTMPLibLog(RTMP_LOGDEBUG, "b64(%d) = %s", challenge2_data, challenge2);
 
             MD5_Init(&md5ctx);
             MD5_Update(&md5ctx, salted2, B64DIGEST_LEN);
@@ -2595,12 +2608,12 @@ PublisherAuth(RTMP *r, AVal *description)
             MD5_Update(&md5ctx, challenge2, B64INT_LEN);
             MD5_Final(md5sum_val, &md5ctx);
 
-            RTMP_Log(RTMP_LOGDEBUG, "%s, md5(%s%s%s) =>", __FUNCTION__,
+            RTMPLibLog(RTMP_LOGDEBUG, "md5(%s%s%s) =>",
                 salted2, opaque.av_len ? opaque.av_val : "", challenge2);
             RTMP_LogHexString(RTMP_LOGDEBUG, md5sum_val, MD5_DIGEST_LENGTH);
 
             b64enc(md5sum_val, MD5_DIGEST_LENGTH, response, RESPONSE_LEN);
-            RTMP_Log(RTMP_LOGDEBUG, "%s, b64(md5_2) = %s", __FUNCTION__, response);
+            RTMPLibLog(RTMP_LOGDEBUG, "b64(md5_2) = %s", response);
 
             /* have all hashes, create auth token for the end of app */
             pubToken.av_val = malloc(32 + B64INT_LEN + B64DIGEST_LEN + opaque.av_len);
@@ -2609,23 +2622,23 @@ PublisherAuth(RTMP *r, AVal *description)
                 challenge2,
                 response,
                 opaque.av_len ? opaque.av_val : "");
-            RTMP_Log(RTMP_LOGDEBUG, "%s, pubToken2: %s", __FUNCTION__, pubToken.av_val);
+            RTMPLibLog(RTMP_LOGDEBUG, "pubToken2: %s", pubToken.av_val);
             free(orig_ptr);
         }
         else if (strstr(description->av_val, "?reason=authfailed") != NULL)
         {
-            RTMP_Log(RTMP_LOGERROR, "%s, Authentication failed: wrong password", __FUNCTION__);
+            RTMPLibLog(RTMP_LOGERROR, "Authentication failed: wrong password");
             return 0;
         }
         else if (strstr(description->av_val, "?reason=nosuchuser") != NULL)
         {
-            RTMP_Log(RTMP_LOGERROR, "%s, Authentication failed: no such user", __FUNCTION__);
+            RTMPLibLog(RTMP_LOGERROR, "Authentication failed: no such user");
             return 0;
         }
         else
         {
-            RTMP_Log(RTMP_LOGERROR, "%s, Authentication failed: unknown auth mode: %s",
-                __FUNCTION__, description->av_val);
+            RTMPLibLog(RTMP_LOGERROR, "Authentication failed: unknown auth mode: %s",
+                description->av_val);
             return 0;
         }
 
@@ -2648,7 +2661,7 @@ PublisherAuth(RTMP *r, AVal *description)
         free(pubToken.av_val);
         r->Link.lFlags |= RTMP_LF_FTCU | RTMP_LF_FAPU;
 
-        RTMP_Log(RTMP_LOGDEBUG, "%s, new app: %.*s tcUrl: %.*s playpath: %s", __FUNCTION__,
+        RTMPLibLog(RTMP_LOGDEBUG, "new app: %.*s tcUrl: %.*s playpath: %s", 
             r->Link.app.av_len, r->Link.app.av_val,
             r->Link.tcUrl.av_len, r->Link.tcUrl.av_val,
             r->Link.playpath.av_val);
@@ -2660,7 +2673,7 @@ PublisherAuth(RTMP *r, AVal *description)
             /* This part seems to be the same for llnw and adobe */
 
             if (strstr(r->Link.app.av_val, av_authmod_llnw.av_val) != NULL) {
-                RTMP_Log(RTMP_LOGERROR, "%s, wrong pubUser & pubPasswd for publisher auth", __FUNCTION__);
+                RTMPLibLog(RTMP_LOGERROR, "wrong pubUser & pubPasswd for publisher auth");
                 return 0;
             }
             else if (r->Link.pubUser.av_len && r->Link.pubPasswd.av_len) {
@@ -2668,10 +2681,10 @@ PublisherAuth(RTMP *r, AVal *description)
                 pubToken.av_len = sprintf(pubToken.av_val, "?%s&user=%s",
                     av_authmod_llnw.av_val,
                     r->Link.pubUser.av_val);
-                RTMP_Log(RTMP_LOGDEBUG, "%s, pubToken1: %s", __FUNCTION__, pubToken.av_val);
+                RTMPLibLog(RTMP_LOGDEBUG, "pubToken1: %s", pubToken.av_val);
             }
             else {
-                RTMP_Log(RTMP_LOGERROR, "%s, need to set pubUser & pubPasswd for publisher auth", __FUNCTION__);
+                RTMPLibLog(RTMP_LOGERROR, "need to set pubUser & pubPasswd for publisher auth");
                 return 0;
             }
         }
@@ -2726,7 +2739,7 @@ PublisherAuth(RTMP *r, AVal *description)
                     aptr = &nonce;
                 }
 
-                RTMP_Log(RTMP_LOGDEBUG, "%s, par:\"%s\" = val:\"%s\"", __FUNCTION__, par, val);
+                RTMPLibLog(RTMP_LOGDEBUG, "par:\"%s\" = val:\"%s\"", par, val);
             }
             if (aptr)
                 aptr->av_len = strlen(aptr->av_val);
@@ -2744,7 +2757,7 @@ PublisherAuth(RTMP *r, AVal *description)
             MD5_Update(&md5ctx, ":", 1);
             MD5_Update(&md5ctx, r->Link.pubPasswd.av_val, r->Link.pubPasswd.av_len);
             MD5_Final(md5sum_val, &md5ctx);
-            RTMP_Log(RTMP_LOGDEBUG, "%s, md5(%s:%s:%s) =>", __FUNCTION__,
+            RTMPLibLog(RTMP_LOGDEBUG, "md5(%s:%s:%s) =>",
                 user.av_val, realm, r->Link.pubPasswd.av_val);
             RTMP_LogHexString(RTMP_LOGDEBUG, md5sum_val, MD5_DIGEST_LENGTH);
             hexenc(md5sum_val, MD5_DIGEST_LENGTH, hash1);
@@ -2763,7 +2776,7 @@ PublisherAuth(RTMP *r, AVal *description)
             if (!AValChr(&apptmp, '/'))
                 MD5_Update(&md5ctx, "/_definst_", sizeof("/_definst_") - 1);
             MD5_Final(md5sum_val, &md5ctx);
-            RTMP_Log(RTMP_LOGDEBUG, "%s, md5(%s:/%.*s) =>", __FUNCTION__,
+            RTMPLibLog(RTMP_LOGDEBUG, "md5(%s:/%.*s) =>",
                 method, apptmp.av_len, apptmp.av_val);
             RTMP_LogHexString(RTMP_LOGDEBUG, md5sum_val, MD5_DIGEST_LENGTH);
             hexenc(md5sum_val, MD5_DIGEST_LENGTH, hash2);
@@ -2782,7 +2795,7 @@ PublisherAuth(RTMP *r, AVal *description)
             MD5_Update(&md5ctx, ":", 1);
             MD5_Update(&md5ctx, hash2, HEXHASH_LEN);
             MD5_Final(md5sum_val, &md5ctx);
-            RTMP_Log(RTMP_LOGDEBUG, "%s, md5(%s:%s:%s:%s:%s:%s) =>", __FUNCTION__,
+            RTMPLibLog(RTMP_LOGDEBUG, "md5(%s:%s:%s:%s:%s:%s) =>",
                 hash1, nonce.av_val, nchex, cnonce, qop, hash2);
             RTMP_LogHexString(RTMP_LOGDEBUG, md5sum_val, MD5_DIGEST_LENGTH);
             hexenc(md5sum_val, MD5_DIGEST_LENGTH, hash3);
@@ -2795,24 +2808,24 @@ PublisherAuth(RTMP *r, AVal *description)
                 "&nonce=%s&cnonce=%s&nc=%s&response=%s",
                 nonce.av_val, cnonce, nchex, hash3);
             pubToken.av_len = strlen(pubToken.av_val);
-            RTMP_Log(RTMP_LOGDEBUG, "%s, pubToken2: %s", __FUNCTION__, pubToken.av_val);
+            RTMPLibLog(RTMP_LOGDEBUG, "pubToken2: %s", pubToken.av_val);
 
             free(orig_ptr);
         }
         else if (strstr(description->av_val, "?reason=authfail") != NULL)
         {
-            RTMP_Log(RTMP_LOGERROR, "%s, Authentication failed", __FUNCTION__);
+            RTMPLibLog(RTMP_LOGERROR, "Authentication failed");
             return 0;
         }
         else if (strstr(description->av_val, "?reason=nosuchuser") != NULL)
         {
-            RTMP_Log(RTMP_LOGERROR, "%s, Authentication failed: no such user", __FUNCTION__);
+            RTMPLibLog(RTMP_LOGERROR, "Authentication failed: no such user");
             return 0;
         }
         else
         {
-            RTMP_Log(RTMP_LOGERROR, "%s, Authentication failed: unknown auth mode: %s",
-                __FUNCTION__, description->av_val);
+            RTMPLibLog(RTMP_LOGERROR, "Authentication failed: unknown auth mode: %s",
+                description->av_val);
             return 0;
         }
 
@@ -2835,7 +2848,7 @@ PublisherAuth(RTMP *r, AVal *description)
         free(pubToken.av_val);
         r->Link.lFlags |= RTMP_LF_FTCU | RTMP_LF_FAPU;
 
-        RTMP_Log(RTMP_LOGDEBUG, "%s, new app: %.*s tcUrl: %.*s playpath: %s", __FUNCTION__,
+        RTMPLibLog(RTMP_LOGDEBUG, "new app: %.*s tcUrl: %.*s playpath: %s",
             r->Link.app.av_len, r->Link.app.av_val,
             r->Link.tcUrl.av_len, r->Link.tcUrl.av_val,
             r->Link.playpath.av_val);
@@ -2890,22 +2903,21 @@ HandleInvoke(RTMP *r, const char *body, unsigned int nBodySize)
     int ret = 0, nRes;
     if (body[0] != 0x02)        /* make sure it is a string method name we start with */
     {
-        RTMP_Log(RTMP_LOGWARNING, "%s, Sanity failed. no string method in invoke packet",
-            __FUNCTION__);
+        RTMPLibLog(RTMP_LOGWARNING, "Sanity failed. no string method in invoke packet");
         return 0;
     }
 
     nRes = AMF_Decode(&obj, body, nBodySize, FALSE);
     if (nRes < 0)
     {
-        RTMP_Log(RTMP_LOGERROR, "%s, error decoding invoke packet", __FUNCTION__);
+        RTMPLibLog(RTMP_LOGERROR, "error decoding invoke packet");
         return 0;
     }
 
     AMF_Dump(&obj);
     AMFProp_GetString(AMF_GetProp(&obj, NULL, 0), &method);
     txn = AMFProp_GetNumber(AMF_GetProp(&obj, NULL, 1));
-    RTMP_Log(RTMP_LOGDEBUG, "%s, server invoking <%s>", __FUNCTION__, method.av_val);
+    RTMPLibLog(RTMP_LOGDEBUG, "server invoking <%s>", method.av_val);
 
     if (AVMATCH(&method, &av__result))
     {
@@ -2920,12 +2932,12 @@ HandleInvoke(RTMP *r, const char *body, unsigned int nBodySize)
             }
         }
         if (!methodInvoked.av_val) {
-            RTMP_Log(RTMP_LOGDEBUG, "%s, received result id %f without matching request",
-                __FUNCTION__, txn);
+            RTMPLibLog(RTMP_LOGDEBUG, "received result id %f without matching request",
+                txn);
             goto leave;
         }
 
-        RTMP_Log(RTMP_LOGDEBUG, "%s, received result for method call <%s>", __FUNCTION__,
+        RTMPLibLog(RTMP_LOGDEBUG, "received result for method call <%s>",
             methodInvoked.av_val);
 
         if (AVMATCH(&methodInvoked, &av_connect))
@@ -3037,12 +3049,12 @@ HandleInvoke(RTMP *r, const char *body, unsigned int nBodySize)
             }
             if (!methodInvoked.av_val)
             {
-                RTMP_Log(RTMP_LOGDEBUG, "%s, received result id %f without matching request",
-                    __FUNCTION__, txn);
+                RTMPLibLog(RTMP_LOGDEBUG, "received result id %f without matching request",
+                    txn);
                 goto leave;
             }
 
-            RTMP_Log(RTMP_LOGDEBUG, "%s, received error for method call <%s>", __FUNCTION__,
+            RTMPLibLog(RTMP_LOGDEBUG, "received error for method call <%s>",
                 methodInvoked.av_val);
 
             if (AVMATCH(&methodInvoked, &av_connect))
@@ -3053,7 +3065,7 @@ HandleInvoke(RTMP *r, const char *body, unsigned int nBodySize)
                 AMFProp_GetString(AMF_GetProp(&obj2, &av_code, -1), &code);
                 AMFProp_GetString(AMF_GetProp(&obj2, &av_level, -1), &level);
                 AMFProp_GetString(AMF_GetProp(&obj2, &av_description, -1), &description);
-                RTMP_Log(RTMP_LOGDEBUG, "%s, error description: %s", __FUNCTION__, description.av_val);
+                RTMPLibLog(RTMP_LOGDEBUG, "error description: %s", description.av_val);
                 /* if PublisherAuth returns 1, then reconnect */
                 if (PublisherAuth(r, &description) == 1)
                 {
@@ -3085,7 +3097,7 @@ HandleInvoke(RTMP *r, const char *body, unsigned int nBodySize)
         AMFProp_GetString(AMF_GetProp(&obj2, &av_code, -1), &code);
         AMFProp_GetString(AMF_GetProp(&obj2, &av_level, -1), &level);
 
-        RTMP_Log(RTMP_LOGDEBUG, "%s, onStatus: %s", __FUNCTION__, code.av_val);
+        RTMPLibLog(RTMP_LOGDEBUG, "onStatus: %s", code.av_val);
         if (AVMATCH(&code, &av_NetStream_Failed)
             || AVMATCH(&code, &av_NetStream_Play_Failed)
             || AVMATCH(&code, &av_NetStream_Play_StreamNotFound)
@@ -3285,7 +3297,7 @@ HandleMetadata(RTMP *r, char *body, unsigned int len)
     int nRes = AMF_Decode(&obj, body, len, FALSE);
     if (nRes < 0)
     {
-        RTMP_Log(RTMP_LOGERROR, "%s, error decoding meta data packet", __FUNCTION__);
+        RTMPLibLog(RTMP_LOGERROR, "error decoding meta data packet");
         return FALSE;
     }
 
@@ -3320,7 +3332,7 @@ HandleChangeChunkSize(RTMP *r, const RTMPPacket *packet)
     if (packet->m_nBodySize >= 4)
     {
         r->m_inChunkSize = AMF_DecodeInt32(packet->m_body);
-        RTMP_Log(RTMP_LOGDEBUG, "%s, received: chunk size change to %d", __FUNCTION__,
+        RTMPLibLog(RTMP_LOGDEBUG, "received: chunk size change to %d",
             r->m_inChunkSize);
     }
 }
@@ -3384,7 +3396,7 @@ HandleFlexMessage(RTMP * r,const RTMPPacket * packet)
     RTMP_LIB_AMFObject obj;
     int nRes = obj.Decode(packet.m_body + 1, packet.m_nBodySize - 1);
     if (nRes < 0) {
-        RTMP_Log(RTMP_LOGERROR, "%s, error decoding AMF3 packet", __FUNCTION__);
+        RTMPLibLog(RTMP_LOGERROR, "error decoding AMF3 packet");
         /*return; */
     }
 
@@ -3400,7 +3412,7 @@ HandleCtrl(RTMP *r, const RTMPPacket *packet)
     unsigned int tmp;
     if (packet->m_body && packet->m_nBodySize >= 2)
         nType = AMF_DecodeInt16(packet->m_body);
-    RTMP_Log(RTMP_LOGDEBUG, "%s, received ctrl. type: %d, len: %d", __FUNCTION__, nType,
+    RTMPLibLog(RTMP_LOGDEBUG, "received ctrl. type: %d, len: %d", nType,
         packet->m_nBodySize);
     
     if (packet->m_nBodySize >= 6)
@@ -3409,29 +3421,29 @@ HandleCtrl(RTMP *r, const RTMPPacket *packet)
         {
         case 0:
             tmp = AMF_DecodeInt32(packet->m_body + 2);
-            RTMP_Log(RTMP_LOGDEBUG, "%s, Stream Begin %d", __FUNCTION__, tmp);
+            RTMPLibLog(RTMP_LOGDEBUG, "Stream Begin %d", tmp);
             break;
 
         case 1:
             tmp = AMF_DecodeInt32(packet->m_body + 2);
-            RTMP_Log(RTMP_LOGDEBUG, "%s, Stream EOF %d", __FUNCTION__, tmp);
+            RTMPLibLog(RTMP_LOGDEBUG, "Stream EOF %d", tmp);
             if (r->m_pausing == 1)
                 r->m_pausing = 2;
             break;
 
         case 2:
             tmp = AMF_DecodeInt32(packet->m_body + 2);
-            RTMP_Log(RTMP_LOGDEBUG, "%s, Stream Dry %d", __FUNCTION__, tmp);
+            RTMPLibLog(RTMP_LOGDEBUG, "Stream Dry %d", tmp);
             break;
 
         case 4:
             tmp = AMF_DecodeInt32(packet->m_body + 2);
-            RTMP_Log(RTMP_LOGDEBUG, "%s, Stream IsRecorded %d", __FUNCTION__, tmp);
+            RTMPLibLog(RTMP_LOGDEBUG, "Stream IsRecorded %d", tmp);
             break;
 
         case 6:     /* server ping. reply with pong. */
             tmp = AMF_DecodeInt32(packet->m_body + 2);
-            RTMP_Log(RTMP_LOGDEBUG, "%s, Ping %d", __FUNCTION__, tmp);
+            RTMPLibLog(RTMP_LOGDEBUG, "Ping %d", tmp);
             RTMP_SendCtrl(r, 0x07, tmp, 0);
             break;
 
@@ -3473,7 +3485,7 @@ HandleCtrl(RTMP *r, const RTMPPacket *packet)
              */
         case 31:
             tmp = AMF_DecodeInt32(packet->m_body + 2);
-            RTMP_Log(RTMP_LOGDEBUG, "%s, Stream BufferEmpty %d", __FUNCTION__, tmp);
+            RTMPLibLog(RTMP_LOGDEBUG, "Stream BufferEmpty %d", tmp);
             if (!(r->Link.lFlags & RTMP_LF_BUFX))
                 break;
             if (!r->m_pausing)
@@ -3492,12 +3504,12 @@ HandleCtrl(RTMP *r, const RTMPPacket *packet)
 
         case 32:
             tmp = AMF_DecodeInt32(packet->m_body + 2);
-            RTMP_Log(RTMP_LOGDEBUG, "%s, Stream BufferReady %d", __FUNCTION__, tmp);
+            RTMPLibLog(RTMP_LOGDEBUG, "Stream BufferReady %d", tmp);
             break;
 
         default:
             tmp = AMF_DecodeInt32(packet->m_body + 2);
-            RTMP_Log(RTMP_LOGDEBUG, "%s, Stream xx %d", __FUNCTION__, tmp);
+            RTMPLibLog(RTMP_LOGDEBUG, "Stream xx %d", tmp);
             break;
         }
 
@@ -3505,12 +3517,12 @@ HandleCtrl(RTMP *r, const RTMPPacket *packet)
 
     if (nType == 0x1A)
     {
-        RTMP_Log(RTMP_LOGDEBUG, "%s, SWFVerification ping received: ", __FUNCTION__);
+        RTMPLibLog(RTMP_LOGDEBUG, "SWFVerification ping received: ");
         if (packet->m_nBodySize > 2 && packet->m_body[2] > 0x01)
         {
-            RTMP_Log(RTMP_LOGERROR,
-                "%s: SWFVerification Type %d request not supported! Patches welcome...",
-                __FUNCTION__, packet->m_body[2]);
+            RTMPLibLog(RTMP_LOGERROR,
+                "SWFVerification Type %d request not supported! Patches welcome...",
+                packet->m_body[2]);
         }
 #ifdef CRYPTO
         /*RTMP_LogHex(packet.m_body, packet.m_nBodySize); */
@@ -3522,14 +3534,12 @@ HandleCtrl(RTMP *r, const RTMPPacket *packet)
         }
         else
         {
-            RTMP_Log(RTMP_LOGERROR,
-                "%s: Ignoring SWFVerification request, use --swfVfy!",
-                __FUNCTION__);
+            RTMPLibLog(RTMP_LOGERROR,
+                "Ignoring SWFVerification request, use --swfVfy!");
         }
 #else
-        RTMP_Log(RTMP_LOGERROR,
-            "%s: Ignoring SWFVerification request, no CRYPTO support!",
-            __FUNCTION__);
+        RTMPLibLog(RTMP_LOGERROR,
+            "Ignoring SWFVerification request, no CRYPTO support!");
 #endif
     }
 }
@@ -3538,7 +3548,7 @@ void
 HandleServerBW(RTMP *r, const RTMPPacket *packet)
 {
     r->m_nServerBW = AMF_DecodeInt32(packet->m_body);
-    RTMP_Log(RTMP_LOGDEBUG, "%s: server BW = %d", __FUNCTION__, r->m_nServerBW);
+    RTMPLibLog(RTMP_LOGDEBUG, "server BW = %d", r->m_nServerBW);
 }
 
 void
@@ -3549,7 +3559,7 @@ HandleClientBW(RTMP *r, const RTMPPacket *packet)
         r->m_nClientBW2 = packet->m_body[4];
     else
         r->m_nClientBW2 = -1;
-    RTMP_Log(RTMP_LOGDEBUG, "%s: client BW = %d %d", __FUNCTION__, r->m_nClientBW,
+    RTMPLibLog(RTMP_LOGDEBUG, "client BW = %d %d", r->m_nClientBW,
         r->m_nClientBW2);
 }
 
@@ -3585,11 +3595,11 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
     int didAlloc = FALSE;
     int extendedTimestamp;
 
-    RTMP_Log(RTMP_LOGDEBUG2, "%s: fd=%d", __FUNCTION__, r->m_sb.sb_socket);
+    RTMPLibLog(RTMP_LOGDEBUG2, "fd=%d", r->m_sb.sb_socket);
 
     if (ReadN(r, (char *)hbuf, 1) == 0)
     {
-        RTMP_Log(RTMP_LOGERROR, "%s, failed to read RTMP packet header", __FUNCTION__);
+        RTMPLibLog(RTMP_LOGERROR, "failed to read RTMP packet header");
         return FALSE;
     }
 
@@ -3600,8 +3610,7 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
     {
         if (ReadN(r, (char *)&hbuf[1], 1) != 1)
         {
-            RTMP_Log(RTMP_LOGERROR, "%s, failed to read RTMP packet header 2nd byte",
-                __FUNCTION__);
+            RTMPLibLog(RTMP_LOGERROR, "failed to read RTMP packet header 2nd byte");
             return FALSE;
         }
         packet->m_nChannel = hbuf[1];
@@ -3613,13 +3622,12 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
         int tmp;
         if (ReadN(r, (char *)&hbuf[1], 2) != 2)
         {
-            RTMP_Log(RTMP_LOGERROR, "%s, failed to read RTMP packet header 3nd byte",
-                __FUNCTION__);
+            RTMPLibLog(RTMP_LOGERROR, "failed to read RTMP packet header 3nd byte");
             return FALSE;
         }
         tmp = (hbuf[2] << 8) + hbuf[1];
         packet->m_nChannel = tmp + 64;
-        RTMP_Log(RTMP_LOGDEBUG, "%s, m_nChannel: %0x", __FUNCTION__, packet->m_nChannel);
+        RTMPLibLog(RTMP_LOGDEBUG, "m_nChannel: %0x", packet->m_nChannel);
         header += 2;
     }
 
@@ -3659,8 +3667,8 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
 
     if (nSize > 0 && ReadN(r, header, nSize) != nSize)
     {
-        RTMP_Log(RTMP_LOGERROR, "%s, failed to read RTMP packet header. type: %x",
-            __FUNCTION__, (unsigned int)hbuf[0]);
+        RTMPLibLog(RTMP_LOGERROR, "failed to read RTMP packet header. type: %x",
+            (unsigned int)hbuf[0]);
         return FALSE;
     }
 
@@ -3670,7 +3678,7 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
     {
         packet->m_nTimeStamp = AMF_DecodeInt24(header);
 
-        /*RTMP_Log(RTMP_LOGDEBUG, "%s, reading RTMP packet chunk on channel %x, headersz %i, timestamp %i, abs timestamp %i", __FUNCTION__, packet.m_nChannel, nSize, packet.m_nTimeStamp, packet.m_hasAbsTimestamp); */
+        /*RTMPLibLog(RTMP_LOGDEBUG, "reading RTMP packet chunk on channel %x, headersz %i, timestamp %i, abs timestamp %i", packet.m_nChannel, nSize, packet.m_nTimeStamp, packet.m_hasAbsTimestamp); */
 
         if (nSize >= 6)
         {
@@ -3692,8 +3700,7 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
     {
         if (ReadN(r, header + nSize, 4) != 4)
         {
-            RTMP_Log(RTMP_LOGERROR, "%s, failed to read extended timestamp",
-                __FUNCTION__);
+            RTMPLibLog(RTMP_LOGERROR, "failed to read extended timestamp");
             return FALSE;
         }
         packet->m_nTimeStamp = AMF_DecodeInt32(header + nSize);
@@ -3706,7 +3713,7 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
     {
         if (!RTMPPacket_Alloc(packet, packet->m_nBodySize))
         {
-            RTMP_Log(RTMP_LOGDEBUG, "%s, failed to allocate packet", __FUNCTION__);
+            RTMPLibLog(RTMP_LOGDEBUG, "failed to allocate packet");
             return FALSE;
         }
         didAlloc = TRUE;
@@ -3729,8 +3736,8 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
 
     if (ReadN(r, packet->m_body + packet->m_nBytesRead, nChunk) != nChunk)
     {
-        RTMP_Log(RTMP_LOGERROR, "%s, failed to read RTMP packet body. len: %u",
-            __FUNCTION__, packet->m_nBodySize);
+        RTMPLibLog(RTMP_LOGERROR, "failed to read RTMP packet body. len: %u",
+            packet->m_nBodySize);
         return FALSE;
     }
 
@@ -3801,11 +3808,11 @@ HandShake(RTMP *r, int FP9HandShake)
     if (ReadN(r, &type, 1) != 1)    /* 0x03 or 0x06 */
         return FALSE;
 
-    RTMP_Log(RTMP_LOGDEBUG, "%s: Type Answer   : %02X", __FUNCTION__, type);
+    RTMPLibLog(RTMP_LOGDEBUG, "Type Answer   : %02X", type);
 
     if (type != clientbuf[0])
-        RTMP_Log(RTMP_LOGWARNING, "%s: Type mismatch: client sent %d, server answered %d",
-            __FUNCTION__, clientbuf[0], type);
+        RTMPLibLog(RTMP_LOGWARNING, "Type mismatch: client sent %d, server answered %d",
+            clientbuf[0], type);
 
     if (ReadN(r, serversig, RTMP_SIG_SIZE) != RTMP_SIG_SIZE)
         return FALSE;
@@ -3815,8 +3822,8 @@ HandShake(RTMP *r, int FP9HandShake)
     memcpy(&suptime, serversig, 4);
     suptime = ntohl(suptime);
 
-    RTMP_Log(RTMP_LOGDEBUG, "%s: Server Uptime : %d", __FUNCTION__, suptime);
-    RTMP_Log(RTMP_LOGDEBUG, "%s: FMS Version   : %d.%d.%d.%d", __FUNCTION__,
+    RTMPLibLog(RTMP_LOGDEBUG, "Server Uptime : %d", suptime);
+    RTMPLibLog(RTMP_LOGDEBUG, "FMS Version   : %d.%d.%d.%d", 
         serversig[4], serversig[5], serversig[6], serversig[7]);
 
     /* 2nd part of handshake */
@@ -3829,7 +3836,7 @@ HandShake(RTMP *r, int FP9HandShake)
     bMatch = (memcmp(serversig, clientsig, RTMP_SIG_SIZE) == 0);
     if (!bMatch)
     {
-        RTMP_Log(RTMP_LOGWARNING, "%s, client signature does not match!", __FUNCTION__);
+        RTMPLibLog(RTMP_LOGWARNING, "client signature does not match!");
     }
     return TRUE;
 }
@@ -3848,12 +3855,12 @@ SHandShake(RTMP *r)
         return -1;
     }
 
-    RTMP_Log(RTMP_LOGDEBUG, "%s: Type Request  : %02X", __FUNCTION__, serverbuf[0]);
+    RTMPLibLog(RTMP_LOGDEBUG, "Type Request  : %02X", serverbuf[0]);
 
     if (serverbuf[0] != 3)
     {
-        RTMP_Log(RTMP_LOGERROR, "%s: Type unknown: client sent %02X",
-            __FUNCTION__, serverbuf[0]);
+        RTMPLibLog(RTMP_LOGERROR, "Type unknown: client sent %02X",
+            serverbuf[0]);
         return -2;
     }
 
@@ -3884,8 +3891,8 @@ SHandShake(RTMP *r)
     memcpy(&uptime, clientsig, 4);
     uptime = ntohl(uptime);
 
-    RTMP_Log(RTMP_LOGDEBUG, "%s: Client Uptime : %d", __FUNCTION__, uptime);
-    RTMP_Log(RTMP_LOGDEBUG, "%s: Player Version: %d.%d.%d.%d", __FUNCTION__,
+    RTMPLibLog(RTMP_LOGDEBUG, "Client Uptime : %d", uptime);
+    RTMPLibLog(RTMP_LOGDEBUG, "Player Version: %d.%d.%d.%d", 
         clientsig[4], clientsig[5], clientsig[6], clientsig[7]);
 
     /* 2nd part of handshake */
@@ -3902,7 +3909,7 @@ SHandShake(RTMP *r)
     bMatch = (memcmp(serversig, clientsig, RTMP_SIG_SIZE) == 0);
     if (!bMatch)
     {
-        RTMP_Log(RTMP_LOGWARNING, "%s, client signature does not match!", __FUNCTION__);
+        RTMPLibLog(RTMP_LOGWARNING, "client signature does not match!");
     }
     return 1;
 }
@@ -3914,7 +3921,7 @@ RTMP_SendChunk(RTMP *r, RTMPChunk *chunk)
     int wrote;
     char hbuf[RTMP_MAX_HEADER_SIZE];
 
-    RTMP_Log(RTMP_LOGDEBUG2, "%s: fd=%d, size=%d", __FUNCTION__, r->m_sb.sb_socket,
+    RTMPLibLog(RTMP_LOGDEBUG2, "fd=%d, size=%d", r->m_sb.sb_socket,
         chunk->c_chunkSize);
     RTMP_LogHexString(RTMP_LOGDEBUG2, (uint8_t *)chunk->c_header, chunk->c_headerSize);
     if (chunk->c_chunkSize)
@@ -3977,7 +3984,7 @@ RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
 
     if (packet->m_headerType > 3)   /* sanity */
     {
-        RTMP_Log(RTMP_LOGERROR, "%s send type: 0x%02x.", __FUNCTION__,
+        RTMPLibLog(RTMP_LOGERROR, "send type: 0x%02x.",
             (unsigned char)packet->m_headerType);
         return FALSE;
     }
@@ -4011,7 +4018,7 @@ RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
     {
         header -= 4;
         hSize += 4;
-        RTMP_Log(RTMP_LOGWARNING, "%s timestamp than 24-bit: 0x%x",__FUNCTION__, t);
+        RTMPLibLog(RTMP_LOGWARNING, "timestamp than 24-bit: 0x%x", t);
     }
 
     hptr = header;
@@ -4057,8 +4064,7 @@ RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
     buffer = packet->m_body;
     nChunkSize = r->m_outChunkSize;
 
-    RTMP_Log(RTMP_LOGDEBUG2, "%s: fd=%d, size=%d", __FUNCTION__, r->m_sb.sb_socket,
-        nSize);
+    RTMPLibLog(RTMP_LOGDEBUG2, "fd=%d, size=%d", r->m_sb.sb_socket, nSize);
     /* send all chunks in one HTTP request */
     if (r->Link.protocol & RTMP_FEATURE_HTTP)
     {
@@ -4141,7 +4147,7 @@ RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
         char *ptr;
         ptr = packet->m_body + 1;
         AMF_DecodeString(ptr, &method);
-        RTMP_Log(RTMP_LOGDEBUG, "%s Invoking %s", __FUNCTION__, method.av_val);
+        RTMPLibLog(RTMP_LOGDEBUG, "Invoking %s", method.av_val);
         /* keep it in call queue till result arrives */
         if (queue) {
             int txn;
@@ -4164,8 +4170,7 @@ RTMP_Serve(RTMP *r)
     ret = SHandShake(r);
     if (ret < 0)
     {       
-        RTMP_Log(RTMP_LOGERROR, "%s: SHandShake ret:%d",
-            __FUNCTION__, ret);
+        RTMPLibLog(RTMP_LOGERROR, "SHandShake ret:%d", ret);
         return 0;
     }
     else
@@ -4327,8 +4332,8 @@ RTMPSockBuf_Fill(RTMPSockBuf *sb)
         else
         {
             int sockerr = GetSockError();
-            RTMP_Log(RTMP_LOGDEBUG, "%s, recv returned %d. GetSockError(): %d (%s)",
-                __FUNCTION__, nBytes, sockerr, strerror(sockerr));
+            RTMPLibLog(RTMP_LOGDEBUG, "recv returned %d. GetSockError(): %d (%s)",
+                nBytes, sockerr, strerror(sockerr));
             if (sockerr == EINTR && !RTMP_ctrlC)
                 continue;
 
@@ -5193,7 +5198,7 @@ RTMP_Write(RTMP *r, const char *buf, int size)
 
             if (!RTMPPacket_Alloc(pkt, pkt->m_nBodySize))
             {
-                RTMP_Log(RTMP_LOGDEBUG, "%s, failed to allocate packet", __FUNCTION__);
+                RTMPLibLog(RTMP_LOGDEBUG, "failed to allocate packet");
                 return FALSE;
             }
             enc = pkt->m_body;

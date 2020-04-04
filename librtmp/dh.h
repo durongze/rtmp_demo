@@ -43,6 +43,8 @@ typedef mpi * MP_t;
 #define MP_setbin(u,buf,len)	mpi_write_binary(u,buf,len)
 #define MP_getbin(u,buf,len)	MP_new(u); mpi_read_binary(u,buf,len)
 
+#define RTMPDhLog(l, fmt, ...) RTMPLog(l, "DH", fmt, ##__VA_ARGS__)
+
 typedef struct MDH {
   MP_t p;
   MP_t g;
@@ -207,7 +209,7 @@ isValidPublicKey(MP_t y, MP_t p, MP_t q)
   MP_set_w(bn, 1);
   if (MP_cmp(y, bn) < 0)
     {
-      RTMP_Log(RTMP_LOGERROR, "DH public key must be at least 2");
+      RTMPDhLog(RTMP_LOGERROR, "DH public key must be at least 2");
       ret = FALSE;
       goto failed;
     }
@@ -217,7 +219,7 @@ isValidPublicKey(MP_t y, MP_t p, MP_t q)
   MP_sub_w(bn, 1);
   if (MP_cmp(y, bn) > 0)
     {
-      RTMP_Log(RTMP_LOGERROR, "DH public key must be at most p-2");
+      RTMPDhLog(RTMP_LOGERROR, "DH public key must be at most p-2");
       ret = FALSE;
       goto failed;
     }
@@ -235,7 +237,7 @@ isValidPublicKey(MP_t y, MP_t p, MP_t q)
 
       if (MP_cmp_1(bn) != 0)
 	{
-	  RTMP_Log(RTMP_LOGWARNING, "DH public key does not fulfill y^q mod p = 1");
+	  RTMPDhLog(RTMP_LOGWARNING, "DH public key does not fulfill y^q mod p = 1");
 	}
     }
 

@@ -367,7 +367,7 @@ void processTCPrequest(STREAMING_SERVER * server,	// server socket and state (ou
 
 	if (select(sockfd + 1, &fds, NULL, NULL, &tv) <= 0)
 	{
-		RTMP_Log(RTMP_LOGERROR, "Request timeout/select failed, ignoring request");
+		RTMPGwLog(RTMP_LOGERROR, "Request timeout/select failed, ignoring request");
 		goto quit;
 	}
 	else
@@ -627,7 +627,7 @@ void processTCPrequest(STREAMING_SERVER * server,	// server socket and state (ou
 #ifdef _DEBUG
 			else
 			{
-				RTMP_Log(RTMP_LOGDEBUG, "zero read!");
+				RTMPGwLog(RTMP_LOGDEBUG, "zero read!");
 			}
 #endif
 		} while (server->state == STREAMING_IN_PROGRESS && nRead > -1
@@ -802,8 +802,7 @@ ParseOption(char opt, char *arg, RTMP_REQUEST * req)
 		if (!res || res != RTMP_SWF_HASHLEN)
 		{
 			req->swfHash.av_val = NULL;
-			RTMP_Log(RTMP_LOGWARNING,
-				"Couldn't parse swf hash hex string, not hexstring or not %d bytes, ignoring!", RTMP_SWF_HASHLEN);
+			RTMPGwLog(RTMP_LOGWARNING, "Couldn't parse swf hash hex string, %d bytes!", RTMP_SWF_HASHLEN);
 		}
 		req->swfHash.av_len = RTMP_SWF_HASHLEN;
 		break;
@@ -813,7 +812,7 @@ ParseOption(char opt, char *arg, RTMP_REQUEST * req)
 		int size = atoi(arg);
 		if (size <= 0)
 		{
-			RTMP_Log(RTMP_LOGERROR, "SWF Size must be at least 1, ignoring\n");
+			RTMPGwLog(RTMP_LOGERROR, "SWF Size must be at least 1, ignoring\n");
 		}
 		else
 		{
@@ -832,7 +831,7 @@ ParseOption(char opt, char *arg, RTMP_REQUEST * req)
 		int num = atoi(arg);
 		if (num < 0)
 		{
-			RTMP_Log(RTMP_LOGERROR, "SWF Age must be non-negative, ignoring\n");
+			RTMPGwLog(RTMP_LOGERROR, "SWF Age must be non-negative, ignoring\n");
 		}
 		else
 		{
@@ -846,9 +845,7 @@ ParseOption(char opt, char *arg, RTMP_REQUEST * req)
 		int32_t bt = atol(arg);
 		if (bt < 0)
 		{
-			RTMP_Log(RTMP_LOGERROR,
-				"Buffer time must be greater than zero, ignoring the specified value %d!",
-				bt);
+			RTMPGwLog(RTMP_LOGERROR, "Buffer time must be greater than zero, value %d!", bt);
 		}
 		else
 		{
@@ -873,7 +870,7 @@ ParseOption(char opt, char *arg, RTMP_REQUEST * req)
 		int protocol = atoi(arg);
 		if (protocol < RTMP_PROTOCOL_RTMP || protocol > RTMP_PROTOCOL_RTMPTS)
 		{
-			RTMP_Log(RTMP_LOGERROR, "Unknown protocol specified: %d, using default",
+			RTMPGwLog(RTMP_LOGERROR, "Unknown protocol specified: %d, using default",
 				protocol);
 			return FALSE;
 		}
@@ -898,7 +895,7 @@ ParseOption(char opt, char *arg, RTMP_REQUEST * req)
 		(req->rtmpurl, &parsedProtocol, &parsedHost, &parsedPort,
 			&parsedPlaypath, &parsedApp))
 		{
-			RTMP_Log(RTMP_LOGWARNING, "Couldn't parse the specified url (%s)!", arg);
+			RTMPGwLog(RTMP_LOGWARNING, "Couldn't parse the specified url (%s)!", arg);
 		}
 		else
 		{

@@ -17,6 +17,7 @@
 
 #define FLV_FILE  "test.flv"
 #define RTMP_STREAM "rtmp://192.168.137.1:1935/cctvf/durongze"
+#define RTMPPubLog(l, fmt, ...) RTMPLog(l, "PUB", fmt, ##__VA_ARGS__)
 
 #ifdef _DEBUG
 uint32_t debugTS = 0;
@@ -125,7 +126,7 @@ int publish_using_packet() {
     rtmp->Link.timeout = 5;
     if (!RTMP_SetupURL(rtmp, RTMP_STREAM))
     {
-        RTMP_Log(RTMP_LOGERROR, "SetupURL Err\n");
+        RTMPPubLog(RTMP_LOGERROR, "SetupURL Err\n");
         RTMP_Free(rtmp);
         CleanupSockets();
         return -1;
@@ -135,14 +136,14 @@ int publish_using_packet() {
     RTMP_EnableWrite(rtmp);
 
     if (!RTMP_Connect(rtmp, NULL)) {
-        RTMP_Log(RTMP_LOGERROR, "Connect Err\n");
+        RTMPPubLog(RTMP_LOGERROR, "Connect Err\n");
         RTMP_Free(rtmp);
         CleanupSockets();
         return -1;
     }
 
     if (!RTMP_ConnectStream(rtmp, 0)) {
-        RTMP_Log(RTMP_LOGERROR, "ConnectStream Err\n");
+        RTMPPubLog(RTMP_LOGERROR, "ConnectStream Err\n");
         RTMP_Close(rtmp);
         RTMP_Free(rtmp);
         CleanupSockets();
@@ -205,11 +206,11 @@ int publish_using_packet() {
         pre_frame_time = timestamp;
 
         if (!RTMP_IsConnected(rtmp)) {
-            RTMP_Log(RTMP_LOGERROR, "rtmp is not connect\n");
+            RTMPPubLog(RTMP_LOGERROR, "rtmp is not connect\n");
             break;
         }
         if (!RTMP_SendPacket(rtmp, packet, 0)) {
-            RTMP_Log(RTMP_LOGERROR, "Send Error\n");
+            RTMPPubLog(RTMP_LOGERROR, "Send Error\n");
             break;
         }
 
@@ -299,7 +300,7 @@ int publish_using_write() {
     rtmp->Link.timeout = 5;
     if (!RTMP_SetupURL(rtmp, RTMP_STREAM))
     {
-        RTMP_Log(RTMP_LOGERROR, "SetupURL Err\n");
+        RTMPPubLog(RTMP_LOGERROR, "SetupURL Err\n");
         RTMP_Free(rtmp);
         CleanupSockets();
         return -1;
@@ -309,14 +310,14 @@ int publish_using_write() {
     //1hour
     RTMP_SetBufferMS(rtmp, 3600 * 1000);
     if (!RTMP_Connect(rtmp, NULL)) {
-        RTMP_Log(RTMP_LOGERROR, "Connect Err\n");
+        RTMPPubLog(RTMP_LOGERROR, "Connect Err\n");
         RTMP_Free(rtmp);
         CleanupSockets();
         return -1;
     }
 
     if (!RTMP_ConnectStream(rtmp, 0)) {
-        RTMP_Log(RTMP_LOGERROR, "ConnectStream Err\n");
+        RTMPPubLog(RTMP_LOGERROR, "ConnectStream Err\n");
         RTMP_Close(rtmp);
         RTMP_Free(rtmp);
         CleanupSockets();
@@ -361,11 +362,11 @@ int publish_using_write() {
         pre_frame_time = timestamp;
 
         if (!RTMP_IsConnected(rtmp)) {
-            RTMP_Log(RTMP_LOGERROR, "rtmp is not connect\n");
+            RTMPPubLog(RTMP_LOGERROR, "rtmp is not connect\n");
             break;
         }
         if (!RTMP_Write(rtmp, pFileBuf, 11 + datalength + 4)) {
-            RTMP_Log(RTMP_LOGERROR, "Rtmp Write Error\n");
+            RTMPPubLog(RTMP_LOGERROR, "Rtmp Write Error\n");
             break;
         }
 

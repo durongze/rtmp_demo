@@ -957,7 +957,7 @@ void doServe(STREAMING_SERVER * server, // server socket and state (our listenin
 
     if (select(sockfd + 1, &fds, NULL, NULL, &tv) <= 0)
     {
-        RTMP_Log(RTMP_LOGERROR, "Request timeout/select failed, ignoring request");
+        RTMPSrvLog(RTMP_LOGERROR, "Request timeout/select failed, ignoring request");
         goto quit;
     }
     else
@@ -966,12 +966,12 @@ void doServe(STREAMING_SERVER * server, // server socket and state (our listenin
         rtmp->m_sb.sb_socket = sockfd;
         if (sslCtx && !RTMP_TLS_Accept(rtmp, sslCtx))
         {
-            RTMP_Log(RTMP_LOGERROR, "TLS handshake failed");
+            RTMPSrvLog(RTMP_LOGERROR, "TLS handshake failed");
             goto cleanup;
         }
         if (!RTMP_Serve(rtmp))
         {
-            RTMP_Log(RTMP_LOGERROR, "Handshake failed");
+            RTMPSrvLog(RTMP_LOGERROR, "Handshake failed");
             goto cleanup;
         }
     }

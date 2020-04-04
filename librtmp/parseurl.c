@@ -30,54 +30,56 @@
 #include "rtmp_sys.h"
 #include "log.h"
 
+#define RTMPUrlLog(l, fmt, ...) RTMPLog(l, "URL", fmt, ##__VA_ARGS__)
+
 void RTMPChunk_Show(RTMPChunk chunk)
 {
-	RTMP_Log(RTMP_LOGDEBUG, "c_headerSize:%d\n", chunk.c_headerSize);
-	RTMP_Log(RTMP_LOGDEBUG, "c_chunkSize:%d\n", chunk.c_chunkSize);
+	RTMPUrlLog(RTMP_LOGDEBUG, "c_headerSize:%d\n", chunk.c_headerSize);
+	RTMPUrlLog(RTMP_LOGDEBUG, "c_chunkSize:%d\n", chunk.c_chunkSize);
 }
 
 void RTMP_Show(RTMP rtmp)
 {
-	RTMP_Log(RTMP_LOGDEBUG, "m_inChunkSize:%d\n", rtmp.m_inChunkSize);
-	RTMP_Log(RTMP_LOGDEBUG, "m_outChunkSize:%d\n", rtmp.m_outChunkSize);
-	RTMP_Log(RTMP_LOGDEBUG, "m_nBWCheckCounter:%d\n", rtmp.m_nBWCheckCounter);
-	RTMP_Log(RTMP_LOGDEBUG, "m_nBytesIn:%d\n", rtmp.m_nBytesIn);
-	RTMP_Log(RTMP_LOGDEBUG, "m_nBytesInSent:%d\n", rtmp.m_nBytesInSent);
-	RTMP_Log(RTMP_LOGDEBUG, "m_nBufferMS:%d\n", rtmp.m_nBufferMS);
-	RTMP_Log(RTMP_LOGDEBUG, "m_stream_id:%d\n", rtmp.m_stream_id);		/* returned in _result from createStream */
-	RTMP_Log(RTMP_LOGDEBUG, "m_mediaChannel:%d\n", rtmp.m_mediaChannel);
-	RTMP_Log(RTMP_LOGDEBUG, "m_mediaStamp:%d\n", rtmp.m_mediaStamp);
-	RTMP_Log(RTMP_LOGDEBUG, "m_pauseStamp:%d\n", rtmp.m_pauseStamp);
-	RTMP_Log(RTMP_LOGDEBUG, "m_pausing:%d\n", rtmp.m_pausing);
-	RTMP_Log(RTMP_LOGDEBUG, "m_nServerBW:%d\n", rtmp.m_nServerBW);
-	RTMP_Log(RTMP_LOGDEBUG, "m_nClientBW:%d\n", rtmp.m_nClientBW);
-	RTMP_Log(RTMP_LOGDEBUG, "m_nClientBW2:%d\n", rtmp.m_nClientBW2);
-	RTMP_Log(RTMP_LOGDEBUG, "m_bPlaying:%d\n", rtmp.m_bPlaying);
-	RTMP_Log(RTMP_LOGDEBUG, "m_bSendEncoding:%d\n", rtmp.m_bSendEncoding);
-	RTMP_Log(RTMP_LOGDEBUG, "m_bSendCounter:%d\n", rtmp.m_bSendCounter);
+	RTMPUrlLog(RTMP_LOGDEBUG, "m_inChunkSize:%d\n", rtmp.m_inChunkSize);
+	RTMPUrlLog(RTMP_LOGDEBUG, "m_outChunkSize:%d\n", rtmp.m_outChunkSize);
+	RTMPUrlLog(RTMP_LOGDEBUG, "m_nBWCheckCounter:%d\n", rtmp.m_nBWCheckCounter);
+	RTMPUrlLog(RTMP_LOGDEBUG, "m_nBytesIn:%d\n", rtmp.m_nBytesIn);
+	RTMPUrlLog(RTMP_LOGDEBUG, "m_nBytesInSent:%d\n", rtmp.m_nBytesInSent);
+	RTMPUrlLog(RTMP_LOGDEBUG, "m_nBufferMS:%d\n", rtmp.m_nBufferMS);
+	RTMPUrlLog(RTMP_LOGDEBUG, "m_stream_id:%d\n", rtmp.m_stream_id);		/* returned in _result from createStream */
+	RTMPUrlLog(RTMP_LOGDEBUG, "m_mediaChannel:%d\n", rtmp.m_mediaChannel);
+	RTMPUrlLog(RTMP_LOGDEBUG, "m_mediaStamp:%d\n", rtmp.m_mediaStamp);
+	RTMPUrlLog(RTMP_LOGDEBUG, "m_pauseStamp:%d\n", rtmp.m_pauseStamp);
+	RTMPUrlLog(RTMP_LOGDEBUG, "m_pausing:%d\n", rtmp.m_pausing);
+	RTMPUrlLog(RTMP_LOGDEBUG, "m_nServerBW:%d\n", rtmp.m_nServerBW);
+	RTMPUrlLog(RTMP_LOGDEBUG, "m_nClientBW:%d\n", rtmp.m_nClientBW);
+	RTMPUrlLog(RTMP_LOGDEBUG, "m_nClientBW2:%d\n", rtmp.m_nClientBW2);
+	RTMPUrlLog(RTMP_LOGDEBUG, "m_bPlaying:%d\n", rtmp.m_bPlaying);
+	RTMPUrlLog(RTMP_LOGDEBUG, "m_bSendEncoding:%d\n", rtmp.m_bSendEncoding);
+	RTMPUrlLog(RTMP_LOGDEBUG, "m_bSendCounter:%d\n", rtmp.m_bSendCounter);
 
-	RTMP_Log(RTMP_LOGDEBUG, "m_numInvokes:%d\n", rtmp.m_numInvokes);
-	RTMP_Log(RTMP_LOGDEBUG, "m_numCalls:%d\n", rtmp.m_numCalls);
+	RTMPUrlLog(RTMP_LOGDEBUG, "m_numInvokes:%d\n", rtmp.m_numInvokes);
+	RTMPUrlLog(RTMP_LOGDEBUG, "m_numCalls:%d\n", rtmp.m_numCalls);
 	if (rtmp.m_methodCalls)
-	RTMP_Log(RTMP_LOGDEBUG, "name:%s\n", rtmp.m_methodCalls->name.av_val);	/* remote method calls queue */
+	RTMPUrlLog(RTMP_LOGDEBUG, "name:%s\n", rtmp.m_methodCalls->name.av_val);	/* remote method calls queue */
 
 	if (rtmp.m_vecChannelsIn && *rtmp.m_vecChannelsIn)
 		RTMPPacket_Dump(*rtmp.m_vecChannelsIn);
 	if (rtmp.m_vecChannelsOut && *rtmp.m_vecChannelsOut)
 		RTMPPacket_Dump(*rtmp.m_vecChannelsOut);
 	if (rtmp.m_channelTimestamp)
-	RTMP_Log(RTMP_LOGDEBUG, "m_channelTimestamp:%d\n", *rtmp.m_channelTimestamp);	/* abs timestamp of last packet */
+	RTMPUrlLog(RTMP_LOGDEBUG, "m_channelTimestamp:%d\n", *rtmp.m_channelTimestamp);	/* abs timestamp of last packet */
 
-	RTMP_Log(RTMP_LOGDEBUG, "m_fAudioCodecs:%f\n", rtmp.m_fAudioCodecs);	/* audioCodecs for the connect packet */
-	RTMP_Log(RTMP_LOGDEBUG, "m_fVideoCodecs:%f\n", rtmp.m_fVideoCodecs);	/* videoCodecs for the connect packet */
-	RTMP_Log(RTMP_LOGDEBUG, "m_fEncoding:%f\n", rtmp.m_fEncoding);		/* AMF0 or AMF3 */
-	RTMP_Log(RTMP_LOGDEBUG, "m_fDuration:%f\n", rtmp.m_fDuration);		/* duration of stream in seconds */
-	RTMP_Log(RTMP_LOGDEBUG, "m_msgCounter:%d\n", rtmp.m_msgCounter);		/* RTMPT stuff */
-	RTMP_Log(RTMP_LOGDEBUG, "m_polling:%d\n", rtmp.m_polling);
-	RTMP_Log(RTMP_LOGDEBUG, "m_resplen:%d\n", rtmp.m_resplen);
-	RTMP_Log(RTMP_LOGDEBUG, "m_unackd:%d\n", rtmp.m_unackd);
+	RTMPUrlLog(RTMP_LOGDEBUG, "m_fAudioCodecs:%f\n", rtmp.m_fAudioCodecs);	/* audioCodecs for the connect packet */
+	RTMPUrlLog(RTMP_LOGDEBUG, "m_fVideoCodecs:%f\n", rtmp.m_fVideoCodecs);	/* videoCodecs for the connect packet */
+	RTMPUrlLog(RTMP_LOGDEBUG, "m_fEncoding:%f\n", rtmp.m_fEncoding);		/* AMF0 or AMF3 */
+	RTMPUrlLog(RTMP_LOGDEBUG, "m_fDuration:%f\n", rtmp.m_fDuration);		/* duration of stream in seconds */
+	RTMPUrlLog(RTMP_LOGDEBUG, "m_msgCounter:%d\n", rtmp.m_msgCounter);		/* RTMPT stuff */
+	RTMPUrlLog(RTMP_LOGDEBUG, "m_polling:%d\n", rtmp.m_polling);
+	RTMPUrlLog(RTMP_LOGDEBUG, "m_resplen:%d\n", rtmp.m_resplen);
+	RTMPUrlLog(RTMP_LOGDEBUG, "m_unackd:%d\n", rtmp.m_unackd);
     if (rtmp.m_clientID.av_val)
-    RTMP_Log(RTMP_LOGDEBUG, "m_clientID:%s\n", rtmp.m_clientID.av_val);
+    RTMPUrlLog(RTMP_LOGDEBUG, "m_clientID:%s\n", rtmp.m_clientID.av_val);
     RTMPPacket_Dump(&rtmp.m_write);
     RTMPSockBuf_Dump(&rtmp.m_sb);
 }
@@ -87,7 +89,7 @@ int RTMP_ParseURL(const char *url, int *protocol, AVal *host, unsigned int *port
 {
 	char *p, *end, *col, *ques, *slash;
 
-	RTMP_Log(RTMP_LOGDEBUG, "Parsing...");
+	RTMPUrlLog(RTMP_LOGDEBUG, "Parsing...");
 
 	*protocol = RTMP_PROTOCOL_RTMP;
 	*port = 0;
@@ -101,7 +103,7 @@ int RTMP_ParseURL(const char *url, int *protocol, AVal *host, unsigned int *port
 	/* look for usual :// pattern */
 	p = strstr(url, "://");
 	if(!p) {
-		RTMP_Log(RTMP_LOGERROR, "RTMP URL: No :// in url!");
+		RTMPUrlLog(RTMP_LOGERROR, "RTMP URL: No :// in url!");
 		return FALSE;
 	}
 	{
@@ -122,12 +124,12 @@ int RTMP_ParseURL(const char *url, int *protocol, AVal *host, unsigned int *port
 	else if(len == 6 && strncasecmp(url, "rtmpts", 6)==0)
 	        *protocol = RTMP_PROTOCOL_RTMPTS;
 	else {
-		RTMP_Log(RTMP_LOGWARNING, "Unknown protocol!\n");
+		RTMPUrlLog(RTMP_LOGWARNING, "Unknown protocol!\n");
 		goto parsehost;
 	}
 	}
 
-	RTMP_Log(RTMP_LOGDEBUG, "Parsed protocol: %d", *protocol);
+	RTMPUrlLog(RTMP_LOGDEBUG, "Parsed protocol: %d", *protocol);
 
 parsehost:
 	/* let's get the hostname */
@@ -135,7 +137,7 @@ parsehost:
 
 	/* check for sudden death */
 	if(*p==0) {
-		RTMP_Log(RTMP_LOGWARNING, "No hostname in URL!");
+		RTMPUrlLog(RTMP_LOGWARNING, "No hostname in URL!");
 		return FALSE;
 	}
 
@@ -156,9 +158,9 @@ parsehost:
 	if(hostlen < 256) {
 		host->av_val = p;
 		host->av_len = hostlen;
-		RTMP_Log(RTMP_LOGDEBUG, "Parsed host    : %.*s", hostlen, host->av_val);
+		RTMPUrlLog(RTMP_LOGDEBUG, "Parsed host    : %.*s", hostlen, host->av_val);
 	} else {
-		RTMP_Log(RTMP_LOGWARNING, "Hostname exceeds 255 characters!");
+		RTMPUrlLog(RTMP_LOGWARNING, "Hostname exceeds 255 characters!");
 	}
 
 	p+=hostlen;
@@ -170,14 +172,14 @@ parsehost:
 		p++;
 		p2 = atoi(p);
 		if(p2 > 65535) {
-			RTMP_Log(RTMP_LOGWARNING, "Invalid port number!");
+			RTMPUrlLog(RTMP_LOGWARNING, "Invalid port number!");
 		} else {
 			*port = p2;
 		}
 	}
 
 	if(!slash) {
-		RTMP_Log(RTMP_LOGWARNING, "No application or playpath in URL!");
+		RTMPUrlLog(RTMP_LOGWARNING, "No application or playpath in URL!");
 		return TRUE;
 	}
 	p = slash+1;
@@ -222,7 +224,7 @@ parsehost:
 
 	app->av_val = p;
 	app->av_len = applen;
-	RTMP_Log(RTMP_LOGDEBUG, "Parsed app     : %.*s", applen, p);
+	RTMPUrlLog(RTMP_LOGDEBUG, "Parsed app     : %.*s", applen, p);
 
 	p += appnamelen;
 	}

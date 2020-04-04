@@ -561,23 +561,23 @@ WriteStream(char **buf,	// target pointer, maybe preallocated
 
 		if (packet->m_packetType == RTMP_PACKET_TYPE_VIDEO && nPacketLen <= 5)
 		{
-			RTMP_Log(RTMP_LOGWARNING, "ignoring too small video packet: size: %d",
+			RTMPSuckLog(RTMP_LOGWARNING, "ignoring too small video packet: size: %d",
 				nPacketLen);
 			ret = 0;
 			break;
 		}
 		if (packet->m_packetType == RTMP_PACKET_TYPE_AUDIO && nPacketLen <= 1)
 		{
-			RTMP_Log(RTMP_LOGWARNING, "ignoring too small audio packet: size: %d",
+			RTMPSuckLog(RTMP_LOGWARNING, "ignoring too small audio packet: size: %d",
 				nPacketLen);
 			ret = 0;
 			break;
 		}
 #ifdef _DEBUG
-		RTMP_Log(RTMP_LOGDEBUG, "type: %02X, size: %d, TS: %d ms", packet->m_packetType,
+		RTMPSuckLog(RTMP_LOGDEBUG, "type: %02X, size: %d, TS: %d ms", packet->m_packetType,
 			nPacketLen, packet->m_nTimeStamp);
 		if (packet->m_packetType == RTMP_PACKET_TYPE_VIDEO)
-			RTMP_Log(RTMP_LOGDEBUG, "frametype: %02X", (*packetBody & 0xf0));
+			RTMPSuckLog(RTMP_LOGDEBUG, "frametype: %02X", (*packetBody & 0xf0));
 #endif
 
 		// calculate packet size and reallocate buffer if necessary
@@ -595,7 +595,7 @@ WriteStream(char **buf,	// target pointer, maybe preallocated
 			*buf = (char *)realloc(*buf, size + 4);
 			if (*buf == 0)
 			{
-				RTMP_Log(RTMP_LOGERROR, "Couldn't reallocate memory!");
+				RTMPSuckLog(RTMP_LOGERROR, "Couldn't reallocate memory!");
 				ret = -1;		// fatal error
 				break;
 			}
@@ -649,13 +649,12 @@ WriteStream(char **buf,	// target pointer, maybe preallocated
 				{
 					if (pos + 11 + dataSize > nPacketLen)
 					{
-						RTMP_Log(RTMP_LOGERROR,
-							"Wrong data size (%u), stream corrupted, aborting!",
+						RTMPSuckLog(RTMP_LOGERROR, "Wrong data size (%u), stream corrupted!",
 							dataSize);
 						ret = -2;
 						break;
 					}
-					RTMP_Log(RTMP_LOGWARNING, "No tagSize found, appending!");
+					RTMPSuckLog(RTMP_LOGWARNING, "No tagSize found, appending!");
 
 					// we have to append a last tagSize!
 					prevTagSize = dataSize + 11;
@@ -669,7 +668,7 @@ WriteStream(char **buf,	// target pointer, maybe preallocated
 						AMF_DecodeInt32(packetBody + pos + 11 + dataSize);
 
 #ifdef _DEBUG
-					RTMP_Log(RTMP_LOGDEBUG,
+					RTMPSuckLog(RTMP_LOGDEBUG,
 						"FLV Packet: type %02X, dataSize: %lu, tagSize: %lu, timeStamp: %lu ms",
 						(unsigned char)packetBody[pos], dataSize, prevTagSize,
 						*nTimeStamp);
@@ -678,8 +677,7 @@ WriteStream(char **buf,	// target pointer, maybe preallocated
 					if (prevTagSize != (dataSize + 11))
 					{
 #ifdef _DEBUG
-						RTMP_Log(RTMP_LOGWARNING,
-							"Tag and data size are not consitent, writing tag size according to dataSize+11: %d",
+						RTMPSuckLog(RTMP_LOGWARNING, "Tag and data size are not consitent, dataSize+11: %d",
 							dataSize + 11);
 #endif
 
@@ -755,7 +753,7 @@ TFTYPE doServe(void *arg)	// server socket and state (our listening socket)
 
 	if (select(sockfd + 1, &rfds, NULL, NULL, &tv) <= 0)
 	{
-		RTMP_Log(RTMP_LOGERROR, "Request timeout/select failed, ignoring request");
+		RTMPSuckLog(RTMP_LOGERROR, "Request timeout/select failed, ignoring request");
 		goto quit;
 	}
 	else
@@ -765,7 +763,7 @@ TFTYPE doServe(void *arg)	// server socket and state (our listening socket)
 		server->rs.m_sb.sb_socket = sockfd;
 		if (!RTMP_Serve(&server->rs))
 		{
-			RTMP_Log(RTMP_LOGERROR, "Handshake failed");
+			RTMPSuckLog(RTMP_LOGERROR, "Handshake failed");
 			goto cleanup;
 		}
 	}
@@ -825,7 +823,7 @@ TFTYPE doServe(void *arg)	// server socket and state (our listening socket)
 						continue;
 					}
 				}
-				RTMP_Log(RTMP_LOGERROR, "Request timeout/select failed, ignoring request");
+				RTMPSuckLog(RTMP_LOGERROR, "Request timeout/select failed, ignoring request");
 				goto cleanup;
 			}
 			if (server->rs.m_sb.sb_socket > 0 &&

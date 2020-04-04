@@ -163,19 +163,19 @@ OpenResumeFile(const char *flvFile, // file name [in]
         // check we've got a valid FLV file to continue!
         if (fread(hbuf, 1, 13, *file) != 13)
         {
-            RTMP_Log(RTMP_LOGERROR, "Couldn't read FLV file header!");
+            RTMPDmpLog(RTMP_LOGERROR, "Couldn't read FLV file header!");
             return RD_FAILED;
         }
         if (hbuf[0] != 'F' || hbuf[1] != 'L' || hbuf[2] != 'V'
             || hbuf[3] != 0x01)
         {
-            RTMP_Log(RTMP_LOGERROR, "Invalid FLV file!");
+            RTMPDmpLog(RTMP_LOGERROR, "Invalid FLV file!");
             return RD_FAILED;
         }
 
         if ((hbuf[4] & 0x05) == 0)
         {
-            RTMP_Log(RTMP_LOGERROR,
+            RTMPDmpLog(RTMP_LOGERROR,
                 "FLV file contains neither video nor audio, aborting!");
             return RD_FAILED;
         }
@@ -185,14 +185,13 @@ OpenResumeFile(const char *flvFile, // file name [in]
 
         if (fread(hbuf, 1, 4, *file) != 4)
         {
-            RTMP_Log(RTMP_LOGERROR, "Invalid FLV file: missing first prevTagSize!");
+            RTMPDmpLog(RTMP_LOGERROR, "Invalid FLV file: missing first prevTagSize!");
             return RD_FAILED;
         }
         prevTagSize = AMF_DecodeInt32(hbuf);
         if (prevTagSize != 0)
         {
-            RTMP_Log(RTMP_LOGWARNING,
-                "First prevTagSize is not zero: prevTagSize = 0x%08X",
+            RTMPDmpLog(RTMP_LOGWARNING, "First prevTagSize is not zero: prevTagSize = 0x%08X",
                 prevTagSize);
         }
 
@@ -252,7 +251,7 @@ OpenResumeFile(const char *flvFile, // file name [in]
                     (&metaObj, &av_duration, &prop))
                     {
                         *duration = AMFProp_GetNumber(&prop);
-                        RTMP_Log(RTMP_LOGDEBUG, "File has duration: %f", *duration);
+                        RTMPDmpLog(RTMP_LOGDEBUG, "File has duration: %f", *duration);
                     }
 
                     bFoundMetaHeader = TRUE;
@@ -266,7 +265,7 @@ OpenResumeFile(const char *flvFile, // file name [in]
 
         free(buffer);
         if (!bFoundMetaHeader)
-            RTMP_Log(RTMP_LOGWARNING, "Couldn't locate meta data!");
+            RTMPDmpLog(RTMP_LOGWARNING, "Couldn't locate meta data!");
     }
 
     return RD_SUCCESS;
@@ -295,7 +294,7 @@ GetLastKeyframe(FILE * file,    // output file [in]
 
     bAudioOnly = (dataType & 0x4) && !(dataType & 0x1);
 
-    RTMP_Log(RTMP_LOGDEBUG, "bAudioOnly: %d, size: %llu", bAudioOnly,
+    RTMPDmpLog(RTMP_LOGDEBUG, "bAudioOnly: %d, size: %llu", bAudioOnly,
         (unsigned long long) size);
 
     // ok, we have to get the timestamp of the last keyframe (only keyframes are seekable) / last audio frame (audio only streams)
@@ -313,15 +312,14 @@ GetLastKeyframe(FILE * file,    // output file [in]
     skipkeyframe:
         if (size - tsize < 13)
         {
-            RTMP_Log(RTMP_LOGERROR,
-                "Unexpected start of file, error in tag sizes, couldn't arrive at prevTagSize=0");
+            RTMPDmpLog(RTMP_LOGERROR, "Unexpected start of file, error in tag sizes");
             return RD_FAILED;
         }
         fseeko(file, size - tsize - 4, SEEK_SET);
         xread = fread(buffer, 1, 4, file);
         if (xread != 4)
         {
-            RTMP_Log(RTMP_LOGERROR, "Couldn't read prevTagSize from file!");
+            RTMPDmpLog(RTMP_LOGERROR, "Couldn't read prevTagSize from file!");
             return RD_FAILED;
         }
 
@@ -330,15 +328,14 @@ GetLastKeyframe(FILE * file,    // output file [in]
 
         if (prevTagSize == 0)
         {
-            RTMP_Log(RTMP_LOGERROR, "Couldn't find keyframe to resume from!");
+            RTMPDmpLog(RTMP_LOGERROR, "Couldn't find keyframe to resume from!");
             return RD_FAILED;
         }
 
         if (prevTagSize < 0 || prevTagSize > size - 4 - 13)
         {
-            RTMP_Log(RTMP_LOGERROR,
-                "Last tag size must be greater/equal zero (prevTagSize=%d) and smaller then filesize, corrupt file!",
-                prevTagSize);
+            RTMPDmpLog(RTMP_LOGERROR,
+                "Last tag size must be greater/equal zero (prevTagSize=%d)!", prevTagSize);
             return RD_FAILED;
         }
         tsize += prevTagSize + 4;
@@ -347,14 +344,14 @@ GetLastKeyframe(FILE * file,    // output file [in]
         fseeko(file, size - tsize, SEEK_SET);
         if (fread(buffer, 1, 12, file) != 12)
         {
-            RTMP_Log(RTMP_LOGERROR, "Couldn't read header!");
+            RTMPDmpLog(RTMP_LOGERROR, "Couldn't read header!");
             return RD_FAILED;
         }
         //*
 #ifdef _DEBUG
         uint32_t ts = AMF_DecodeInt24(buffer + 4);
         ts |= (buffer[7] << 24);
-        RTMP_Log(RTMP_LOGDEBUG, "%02X: TS: %d ms", buffer[0], ts);
+        RTMPDmpLog(RTMP_LOGDEBUG, "%02X: TS: %d ms", buffer[0], ts);
 #endif //*/
 
         // this just continues the loop whenever the number of skipped frames is > 0,
@@ -368,8 +365,7 @@ GetLastKeyframe(FILE * file,    // output file [in]
                 && (buffer[0] != 0x09 || (buffer[11] & 0xf0) != 0x10)))
         {
 #ifdef _DEBUG
-            RTMP_Log(RTMP_LOGDEBUG,
-                "xxxxxxxxxxxxxxxxxxxxxxxx Well, lets go one more back!");
+            RTMPDmpLog(RTMP_LOGDEBUG, " Well, lets go one more back!");
 #endif
             nSkipKeyFrames--;
             goto skipkeyframe;
@@ -385,7 +381,7 @@ GetLastKeyframe(FILE * file,    // output file [in]
     fseeko(file, size - tsize + 11, SEEK_SET);
     if (fread(*initialFrame, 1, *nInitialFrameSize, file) != *nInitialFrameSize)
     {
-        RTMP_Log(RTMP_LOGERROR, "Couldn't read last keyframe, aborting!");
+        RTMPDmpLog(RTMP_LOGERROR, "Couldn't read last keyframe, aborting!");
         return RD_FAILED;
     }
 
@@ -398,18 +394,17 @@ GetLastKeyframe(FILE * file,    // output file [in]
 
     if (*dSeek < 0)
     {
-        RTMP_Log(RTMP_LOGERROR,
-            "Last keyframe timestamp is negative, aborting, your file is corrupt!");
+        RTMPDmpLog(RTMP_LOGERROR, "Last keyframe timestamp is negative, aborting!");
         return RD_FAILED;
     }
-    RTMP_Log(RTMP_LOGDEBUG, "Last keyframe found at: %d ms, size: %d, type: %02X", *dSeek,
-        *nInitialFrameSize, *initialFrameType);
+    RTMPDmpLog(RTMP_LOGDEBUG, "Last keyframe found at: %d ms, size: %d, type: %02X",
+        *dSeek, *nInitialFrameSize, *initialFrameType);
 
     /*
        // now read the timestamp of the frame before the seekable keyframe:
        fseeko(file, size-tsize-4, SEEK_SET);
        if(fread(buffer, 1, 4, file) != 4) {
-       RTMP_Log(RTMP_LOGERROR, "Couldn't read prevTagSize from file!");
+       RTMPDmpLog(RTMP_LOGERROR, "Couldn't read prevTagSize from file!");
        goto start;
        }
        uint32_t prevTagSize = RTMP_LIB::AMF_DecodeInt32(buffer);
@@ -457,12 +452,12 @@ Download(RTMP * rtmp,       // connected RTMP object
 
     if (rtmp->m_read.timestamp)
     {
-        RTMP_Log(RTMP_LOGDEBUG, "Continuing at TS: %d ms\n", rtmp->m_read.timestamp);
+        RTMPDmpLog(RTMP_LOGDEBUG, "Continuing at TS: %d ms\n", rtmp->m_read.timestamp);
     }
 
     if (bLiveStream)
     {
-        RTMP_LogPrintf("Starting Live Stream\n");
+        RTMPDmpLog(RTMP_LOGDEBUG, "Starting Live Stream\n");
     }
     else
     {
@@ -538,8 +533,7 @@ Download(RTMP * rtmp,       // connected RTMP object
                 {
                     bufferTime = (uint32_t)(duration * 1000.0) + 5000;  // extra 5sec to make sure we've got enough
 
-                    RTMP_Log(RTMP_LOGDEBUG,
-                        "Detected that buffer time is less than duration, resetting to: %dms",
+                    RTMPDmpLog(RTMP_LOGDEBUG, "Detected buffer time is less than duration %dms",
                         bufferTime);
                     RTMP_SetBufferMS(rtmp, bufferTime);
                     RTMP_UpdateBufferMS(rtmp);
@@ -582,9 +576,7 @@ Download(RTMP * rtmp,       // connected RTMP object
         }
         else
         {
-#ifdef _DEBUG
-            RTMP_Log(RTMP_LOGDEBUG, "zero read!");
-#endif
+            RTMPDmpLog(RTMP_LOGDEBUG, "zero read!");
             if (rtmp->m_read.status == RTMP_READ_EOF)
                 break;
         }
@@ -612,11 +604,11 @@ Download(RTMP * rtmp,       // connected RTMP object
         }
     }
 
-    RTMP_Log(RTMP_LOGDEBUG, "RTMP_Read returned: %d", nRead);
+    RTMPDmpLog(RTMP_LOGDEBUG, "RTMP_Read returned: %d", nRead);
 
     if (bResume && nRead == -2)
     {
-        RTMP_LogPrintf("Couldn't resume FLV file, try --skip %d\n\n",
+        RTMPDmpLog(RTMP_LOGERROR, "Couldn't resume FLV file, try skip %d\n\n",
             nSkipKeyFrames + 1);
         return RD_FAILED;
     }

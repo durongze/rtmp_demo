@@ -128,7 +128,7 @@ static void InitRC4Encryption
 	HMAC_crunch(ctx, pubKeyIn, 128);
 	HMAC_finish(ctx, digest, digestLen);
 
-	RTMP_Log(RTMP_LOGDEBUG, "RC4 Out Key: ");
+	RTMPSslLog(RTMP_LOGDEBUG, "RC4 Out Key: ");
 	RTMP_LogHex(RTMP_LOGDEBUG, digest, 16);
 
 	RC4_setkey(*rc4keyOut, 16, digest);
@@ -137,7 +137,7 @@ static void InitRC4Encryption
 	HMAC_crunch(ctx, pubKeyOut, 128);
 	HMAC_finish(ctx, digest, digestLen);
 
-	RTMP_Log(RTMP_LOGDEBUG, "RC4 In Key: ");
+	RTMPSslLog(RTMP_LOGDEBUG, "RC4 In Key: ");
 	RTMP_LogHex(RTMP_LOGDEBUG, digest, 16);
 
 	RC4_setkey(*rc4keyIn, 16, digest);
@@ -806,7 +806,7 @@ HandShake(RTMP * r, int FP9HandShake)
 	}
 
 #ifdef _DEBUG
-	RTMP_Log(RTMP_LOGDEBUG, "Clientsig: ");
+	RTMPSslLog(RTMP_LOGDEBUG, "Clientsig: ");
 	RTMP_LogHex(RTMP_LOGDEBUG, clientsig, RTMP_SIG_SIZE);
 #endif
 
@@ -837,7 +837,7 @@ HandShake(RTMP * r, int FP9HandShake)
 		FP9HandShake = FALSE;
 
 #ifdef _DEBUG
-	RTMP_Log(RTMP_LOGDEBUG, "Server signature:");
+	RTMPSslLog(RTMP_LOGDEBUG, "Server signature:");
 	RTMP_LogHex(RTMP_LOGDEBUG, serversig, RTMP_SIG_SIZE);
 #endif
 
@@ -851,7 +851,7 @@ HandShake(RTMP * r, int FP9HandShake)
 
 		if (!VerifyDigest(digestPosServer, serversig, GenuineFMSKey, 36))
 		{
-			RTMP_Log(RTMP_LOGWARNING, "Trying different position for server digest!");
+			RTMPSslLog(RTMP_LOGWARNING, "Trying different position for server digest!");
 			offalg ^= 1;
 			getdig = digoff[offalg];
 			getdh = dhoff[offalg];
@@ -859,7 +859,7 @@ HandShake(RTMP * r, int FP9HandShake)
 
 			if (!VerifyDigest(digestPosServer, serversig, GenuineFMSKey, 36))
 			{
-				RTMP_Log(RTMP_LOGERROR, "Couldn't verify the server digest");	/* continuing anyway will probably fail */
+				RTMPSslLog(RTMP_LOGERROR, "Couldn't verify the server digest");	/* continuing anyway will probably fail */
 				return FALSE;
 			}
 		}
@@ -1216,7 +1216,7 @@ SHandShake(RTMP * r)
 
 		if (!VerifyDigest(digestPosClient, clientsig, GenuineFPKey, 30))
 		{
-			RTMP_Log(RTMP_LOGWARNING, "Trying different position for client digest!");
+			RTMPSslLog(RTMP_LOGWARNING, "Trying different position for client digest!");
 			offalg ^= 1;
 			getdig = digoff[offalg];
 			getdh = dhoff[offalg];
@@ -1225,7 +1225,7 @@ SHandShake(RTMP * r)
 
 			if (!VerifyDigest(digestPosClient, clientsig, GenuineFPKey, 30))
 			{
-				RTMP_Log(RTMP_LOGERROR, "Couldn't verify the client digest");	/* continuing anyway will probably fail */
+				RTMPSslLog(RTMP_LOGERROR, "Couldn't verify the client digest");	/* continuing anyway will probably fail */
 				return -8;
 			}
 		}

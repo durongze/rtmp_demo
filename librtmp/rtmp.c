@@ -114,11 +114,15 @@ static HandleVideoCallBack g_videoCall = NULL;
 
 void RTMPSetHandleAudioCallBack(HandleAudioCallBack* audioCall)
 {
+    RTMPSrvLog(RTMP_LOGINFO, "audioCall\n");
+
     g_audioCall = audioCall;
 }
 
 void RTMPSetHandleVideoCallBack(HandleVideoCallBack* videoCall)
 {
+    RTMPSrvLog(RTMP_LOGINFO, "videoCall\n");
+
     g_videoCall = videoCall;
 }
 
@@ -1263,7 +1267,7 @@ RTMP_ClientPacket(RTMP *r, RTMPPacket *packet)
     
     RTMPLibLog(RTMP_LOGDEBUG, "packet type received: 0x%02x", 
         packet->m_packetType);
-    RTMP_LogHex(RTMP_LOGDEBUG2, packet->m_body, packet->m_nBodySize); 
+    RTMP_LogHex(RTMP_LOGTRACE, packet->m_body, packet->m_nBodySize); 
     switch (packet->m_packetType)
     {
     case RTMP_PACKET_TYPE_CHUNK_SIZE:
@@ -3345,6 +3349,7 @@ HandleAudio(RTMP *r, const RTMPPacket *packet)
     {
         g_audioCall(r, packet);
     }
+    RTMPSrvLog(RTMP_LOGINFO, "processed request\n");
 }
 
 void
@@ -3355,6 +3360,7 @@ HandleVideo(RTMP *r, const RTMPPacket *packet)
     {
         g_videoCall(r, packet);
     }
+    RTMPSrvLog(RTMP_LOGINFO, "processed request\n");
 }
 
 void
@@ -3595,7 +3601,7 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
     int didAlloc = FALSE;
     int extendedTimestamp;
 
-    RTMPLibLog(RTMP_LOGDEBUG2, "fd=%d", r->m_sb.sb_socket);
+    RTMPLibLog(RTMP_LOGTRACE, "fd=%d", r->m_sb.sb_socket);
 
     if (ReadN(r, (char *)hbuf, 1) == 0)
     {
@@ -3707,7 +3713,7 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
         hSize += 4;
     }
 
-    RTMP_LogHexString(RTMP_LOGDEBUG2, (uint8_t *)hbuf, hSize);
+    RTMP_LogHexString(RTMP_LOGTRACE, (uint8_t *)hbuf, hSize);
 
     if (packet->m_nBodySize > 0 && packet->m_body == NULL)
     {
@@ -3741,7 +3747,7 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
         return FALSE;
     }
 
-    RTMP_LogHexString(RTMP_LOGDEBUG2, (uint8_t *)packet->m_body + packet->m_nBytesRead, nChunk);
+    RTMP_LogHexString(RTMP_LOGTRACE, (uint8_t *)packet->m_body + packet->m_nBytesRead, nChunk);
 
     packet->m_nBytesRead += nChunk;
 
@@ -3921,13 +3927,13 @@ RTMP_SendChunk(RTMP *r, RTMPChunk *chunk)
     int wrote;
     char hbuf[RTMP_MAX_HEADER_SIZE];
 
-    RTMPLibLog(RTMP_LOGDEBUG2, "fd=%d, size=%d", r->m_sb.sb_socket,
+    RTMPLibLog(RTMP_LOGTRACE, "fd=%d, size=%d", r->m_sb.sb_socket,
         chunk->c_chunkSize);
-    RTMP_LogHexString(RTMP_LOGDEBUG2, (uint8_t *)chunk->c_header, chunk->c_headerSize);
+    RTMP_LogHexString(RTMP_LOGTRACE, (uint8_t *)chunk->c_header, chunk->c_headerSize);
     if (chunk->c_chunkSize)
     {
         char *ptr = chunk->c_chunk - chunk->c_headerSize;
-        RTMP_LogHexString(RTMP_LOGDEBUG2, (uint8_t *)chunk->c_chunk, chunk->c_chunkSize);
+        RTMP_LogHexString(RTMP_LOGTRACE, (uint8_t *)chunk->c_chunk, chunk->c_chunkSize);
         /* save header bytes we're about to overwrite */
         memcpy(hbuf, ptr, chunk->c_headerSize);
         memcpy(ptr, chunk->c_header, chunk->c_headerSize);
@@ -4064,7 +4070,7 @@ RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
     buffer = packet->m_body;
     nChunkSize = r->m_outChunkSize;
 
-    RTMPLibLog(RTMP_LOGDEBUG2, "fd=%d, size=%d", r->m_sb.sb_socket, nSize);
+    RTMPLibLog(RTMP_LOGTRACE, "fd=%d, size=%d", r->m_sb.sb_socket, nSize);
     /* send all chunks in one HTTP request */
     if (r->Link.protocol & RTMP_FEATURE_HTTP)
     {
@@ -4085,8 +4091,8 @@ RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
         if (nSize < nChunkSize)
             nChunkSize = nSize;
 
-        RTMP_LogHexString(RTMP_LOGDEBUG2, (uint8_t *)header, hSize);
-        RTMP_LogHexString(RTMP_LOGDEBUG2, (uint8_t *)buffer, nChunkSize);
+        RTMP_LogHexString(RTMP_LOGTRACE, (uint8_t *)header, hSize);
+        RTMP_LogHexString(RTMP_LOGTRACE, (uint8_t *)buffer, nChunkSize);
         if (tbuf)
         {
             memcpy(toff, header, nChunkSize + hSize);

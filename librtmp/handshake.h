@@ -1091,7 +1091,7 @@ SHandShake(RTMP * r)
 	}
 
 	RTMPSslLog(RTMP_LOGDEBUG, "Type Requested : %02X", type);
-	RTMP_LogHex(RTMP_LOGDEBUG2, clientsig, RTMP_SIG_SIZE);
+	RTMP_LogHex(RTMP_LOGTRACE, clientsig, RTMP_SIG_SIZE);
 
 	if (type == 3)
 	{
@@ -1190,8 +1190,8 @@ SHandShake(RTMP * r)
 			SHA256_DIGEST_LENGTH);
 	}
 
-	RTMPSslLog(RTMP_LOGDEBUG2, "Serversig: ");
-	RTMP_LogHex(RTMP_LOGDEBUG2, serversig, RTMP_SIG_SIZE);
+	RTMPSslLog(RTMP_LOGTRACE, "Serversig: ");
+	RTMP_LogHex(RTMP_LOGTRACE, serversig, RTMP_SIG_SIZE);
 
 	if (!WriteN(r, (char *)serversig - 1, RTMP_SIG_SIZE + 1))
 	{
@@ -1317,8 +1317,8 @@ SHandShake(RTMP * r)
 	}
 #endif
 
-	RTMPSslLog(RTMP_LOGDEBUG2, "Sending handshake response: ");
-	RTMP_LogHex(RTMP_LOGDEBUG2, clientsig, RTMP_SIG_SIZE);
+	RTMPSslLog(RTMP_LOGTRACE, "Sending handshake response: ");
+	RTMP_LogHex(RTMP_LOGTRACE, clientsig, RTMP_SIG_SIZE);
 
 	if (!WriteN(r, (char *)clientsig, RTMP_SIG_SIZE))
 	{
@@ -1331,8 +1331,8 @@ SHandShake(RTMP * r)
 		return -11;
 	}
 
-	RTMPSslLog(RTMP_LOGDEBUG2, "2nd handshake: ");
-	RTMP_LogHex(RTMP_LOGDEBUG2, clientsig, RTMP_SIG_SIZE);
+	RTMPSslLog(RTMP_LOGTRACE, "2nd handshake: ");
+	RTMP_LogHex(RTMP_LOGTRACE, clientsig, RTMP_SIG_SIZE);
 
 	if (FP9HandShake)
 	{

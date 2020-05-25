@@ -924,15 +924,11 @@ controlServerThread(void *unused)
 
 void SrvHandleAudio(RTMP *r, const RTMPPacket *packet)
 {
-    RTMPSrvLog(RTMP_LOGINFO, "processed request\n");
-
     RTMP_Show(*r);
 }
 
 void SrvHandleVideo(RTMP *r, const RTMPPacket *packet)
 {
-    RTMPSrvLog(RTMP_LOGINFO, "processed request\n");
-
     RTMP_Show(*r);
 }
 
@@ -1166,7 +1162,7 @@ main(int argc, char **argv)
     RTMP_LogPrintf("RTMP Server %s\n", RTMPDUMP_VERSION);
     RTMP_LogPrintf("(c) 2019/07/12 duyongze; license: GPL\n\n");
     //RTMP_LogSetCallback(LogCallback);
-    RTMP_LogSetLevel(RTMP_LOGDEBUG);
+    RTMP_LogSetLevel(RTMP_LOGINFO);
     RTMPSetHandleAudioCallBack(SrvHandleAudio);
     RTMPSetHandleVideoCallBack(SrvHandleVideo);
     for (i = 1; i < argc; i++)
@@ -1209,8 +1205,8 @@ main(int argc, char **argv)
     ThreadCreate(controlServerThread, 0);
 
     // start http streaming
-    if ((rtmpServer =
-        startStreaming(rtmpStreamingDevice, nRtmpStreamingPort)) == 0)
+    rtmpServer = startStreaming(rtmpStreamingDevice, nRtmpStreamingPort);
+    if (rtmpServer == 0)
     {
         RTMP_Log(RTMP_LOGERROR, "Failed to start RTMP server, exiting!");
         return RD_FAILED;

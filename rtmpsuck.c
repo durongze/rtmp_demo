@@ -729,6 +729,80 @@ controlServerThread(void *unused)
 	TFRET();
 }
 
+int doServeProcReadPacket(RTMPPacket *pc, STREAMING_SERVER *server,
+    int *paused, char **buf, // target pointer, maybe preallocated
+	unsigned int *buflen, RTMPChunk* rk)
+{
+	while (RTMP_ReadPacket(&server->rc, pc)) 
+	{
+		int sendit = 1;
+		if (RTMPPacket_IsReady(pc))
+		{
+			if (*paused)
+			{
+				if (pc->m_nTimeStamp <= server->rc.m_mediaStamp)
+					continue;
+				*paused = 0;
+				server->rc.m_pausing = 0;
+			}
+			/* change chunk size */
+			if (pc->m_packetType == RTMP_PACKET_TYPE_CHUNK_SIZE)
+			{
+				if (pc->m_nBodySize >= 4)
+				{
+					server->rc.m_inChunkSize = AMF_DecodeInt32(pc->m_body);
+					RTMPSuckLog(RTMP_LOGDEBUG, "server: chunk size change to %d",
+						server->rc.m_inChunkSize);
+					server->rs.m_outChunkSize = server->rc.m_inChunkSize;
+				}
+			}
+			else if (pc->m_packetType == RTMP_PACKET_TYPE_CONTROL)
+			{
+				short nType = AMF_DecodeInt16(pc->m_body);
+				/* SWFverification */
+				if (nType == 0x1a)
+#ifdef CRYPTO
+					if (server->rc.Link.SWFSize)
+					{
+						RTMP_SendCtrl(&server->rc, 0x1b, 0, 0);
+						sendit = 0;
+					}
+#else
+					/* The session will certainly fail right after this */
+					RTMPSuckLog(RTMP_LOGERROR, "server requested SWF verification, need CRYPTO support! ");
+#endif
+			}
+			else if (server->f_cur && (
+				pc->m_packetType == RTMP_PACKET_TYPE_AUDIO ||
+				pc->m_packetType == RTMP_PACKET_TYPE_VIDEO ||
+				pc->m_packetType == RTMP_PACKET_TYPE_INFO ||
+				pc->m_packetType == RTMP_PACKET_TYPE_FLASH_VIDEO) &&
+				RTMP_ClientPacket(&server->rc, pc))
+			{
+				int len = WriteStream(buf, buflen, &server->stamp, pc);
+				if (len > 0 && fwrite(*buf, 1, len, server->f_cur->f_file) != len)
+					return -1;
+			}
+			else if (pc->m_packetType == RTMP_PACKET_TYPE_FLEX_MESSAGE ||
+				pc->m_packetType == RTMP_PACKET_TYPE_INVOKE)
+			{
+				if (ServePacket(server, 1, pc) && server->f_cur)
+				{
+					fclose(server->f_cur->f_file);
+					server->f_cur->f_file = NULL;
+					server->f_cur = NULL;
+				}
+			}
+		}
+		if (sendit && RTMP_IsConnected(&server->rs))
+			RTMP_SendChunk(&server->rs, rk);
+		if (RTMPPacket_IsReady(pc))
+			RTMPPacket_Free(pc);
+		break;
+	}
+	return 0;
+}
+
 TFTYPE doServe(void *arg)	// server socket and state (our listening socket)
 {
 	STREAMING_SERVER *server = arg;
@@ -903,73 +977,10 @@ TFTYPE doServe(void *arg)	// server socket and state (our listening socket)
 		}
 		if (cr)
 		{
-			while (RTMP_ReadPacket(&server->rc, &pc))
-			{
-				int sendit = 1;
-				if (RTMPPacket_IsReady(&pc))
-				{
-					if (paused)
-					{
-						if (pc.m_nTimeStamp <= server->rc.m_mediaStamp)
-							continue;
-						paused = 0;
-						server->rc.m_pausing = 0;
-					}
-					/* change chunk size */
-					if (pc.m_packetType == RTMP_PACKET_TYPE_CHUNK_SIZE)
-					{
-						if (pc.m_nBodySize >= 4)
-						{
-							server->rc.m_inChunkSize = AMF_DecodeInt32(pc.m_body);
-							RTMPSuckLog(RTMP_LOGDEBUG, "server: chunk size change to %d",
-								server->rc.m_inChunkSize);
-							server->rs.m_outChunkSize = server->rc.m_inChunkSize;
-						}
-					}
-					else if (pc.m_packetType == RTMP_PACKET_TYPE_CONTROL)
-					{
-						short nType = AMF_DecodeInt16(pc.m_body);
-						/* SWFverification */
-						if (nType == 0x1a)
-#ifdef CRYPTO
-							if (server->rc.Link.SWFSize)
-							{
-								RTMP_SendCtrl(&server->rc, 0x1b, 0, 0);
-								sendit = 0;
-							}
-#else
-							/* The session will certainly fail right after this */
-							RTMPSuckLog(RTMP_LOGERROR, "server requested SWF verification, need CRYPTO support! ");
-#endif
-					}
-					else if (server->f_cur && (
-						pc.m_packetType == RTMP_PACKET_TYPE_AUDIO ||
-						pc.m_packetType == RTMP_PACKET_TYPE_VIDEO ||
-						pc.m_packetType == RTMP_PACKET_TYPE_INFO ||
-						pc.m_packetType == RTMP_PACKET_TYPE_FLASH_VIDEO) &&
-						RTMP_ClientPacket(&server->rc, &pc))
-					{
-						int len = WriteStream(&buf, &buflen, &server->stamp, &pc);
-						if (len > 0 && fwrite(buf, 1, len, server->f_cur->f_file) != len)
-							goto cleanup;
-					}
-					else if (pc.m_packetType == RTMP_PACKET_TYPE_FLEX_MESSAGE ||
-						pc.m_packetType == RTMP_PACKET_TYPE_INVOKE)
-					{
-						if (ServePacket(server, 1, &pc) && server->f_cur)
-						{
-							fclose(server->f_cur->f_file);
-							server->f_cur->f_file = NULL;
-							server->f_cur = NULL;
-						}
-					}
-				}
-				if (sendit && RTMP_IsConnected(&server->rs))
-					RTMP_SendChunk(&server->rs, &rk);
-				if (RTMPPacket_IsReady(&pc))
-					RTMPPacket_Free(&pc);
-				break;
-			}
+			if (doServeProcReadPacket(&pc, server, &paused, &buf, &buflen, &rk) != 0)
+            {
+				goto cleanup;
+            }         
 		}
 		if (!RTMP_IsConnected(&server->rs) && RTMP_IsConnected(&server->rc)
 			&& !server->f_cur)

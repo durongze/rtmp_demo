@@ -190,7 +190,7 @@ ServeInvoke(STREAMING_SERVER *server, int which, RTMPPacket *pack, const char *b
 		AVal pname, pval;
 		int i;
 		AMFProp_GetObject(AMF_GetProp(&obj, NULL, 2), &cobj);
-		RTMP_LogPrintf("Processing connect\n");
+		RTMPSuckLog(RTMP_LOGINFO,"Processing connect\n");
 		for (i = 0; i < cobj.o_num; i++)
 		{
 			pname = cobj.o_props[i].p_name;
@@ -199,7 +199,7 @@ ServeInvoke(STREAMING_SERVER *server, int which, RTMPPacket *pack, const char *b
 			if (cobj.o_props[i].p_type == AMF_STRING)
 			{
 				pval = cobj.o_props[i].p_vu.p_aval;
-				RTMP_LogPrintf("%.*s: %.*s\n", pname.av_len, pname.av_val, pval.av_len, pval.av_val);
+				RTMPSuckLog(RTMP_LOGINFO,"%.*s: %.*s\n", pname.av_len, pname.av_val, pval.av_len, pval.av_val);
 			}
 			if (AVMATCH(&pname, &av_app))
 			{
@@ -373,7 +373,7 @@ ServeInvoke(STREAMING_SERVER *server, int which, RTMPPacket *pack, const char *b
 		for (p = file; *p; p++)
 			if (*p == ':')
 				*p = '_';
-		RTMP_LogPrintf("Playpath: %.*s\nSaving as: %s\n",
+		RTMPSuckLog(RTMP_LOGINFO,"Playpath: %.*s\nSaving as: %s\n",
 			server->rc.Link.playpath.av_len, server->rc.Link.playpath.av_val,
 			file);
 		out = fopen(file, "wb");
@@ -717,13 +717,13 @@ controlServerThread(void *unused)
 		switch (ich)
 		{
 		case 'q':
-			RTMP_LogPrintf("Exiting\n");
+			RTMPSuckLog(RTMP_LOGINFO,"Exiting\n");
 			stopStreaming(rtmpServer);
 			free(rtmpServer);
 			exit(0);
 			break;
 		default:
-			RTMP_LogPrintf("Unknown command \'%c\', ignoring\n", ich);
+			RTMPSuckLog(RTMP_LOGINFO,"Unknown command \'%c\', ignoring\n", ich);
 		}
 	}
 	TFRET();
@@ -977,7 +977,7 @@ TFTYPE doServe(void *arg)	// server socket and state (our listening socket)
 	}
 
 cleanup:
-	RTMP_LogPrintf("Closing connection... ");
+	RTMPSuckLog(RTMP_LOGINFO,"Closing connection... ");
 	RTMP_Close(&server->rs);
 	RTMP_Close(&server->rc);
 	while (server->f_head)
@@ -999,7 +999,7 @@ cleanup:
 	server->rc.Link.app.av_val = NULL;
 	server->rc.Link.auth.av_val = NULL;
 	server->rc.Link.flashVer.av_val = NULL;
-	RTMP_LogPrintf("done!\n\n");
+	RTMPSuckLog(RTMP_LOGINFO,"done!\n\n");
 
 quit:
 	if (server->state == STREAMING_IN_PROGRESS)

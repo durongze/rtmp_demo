@@ -280,12 +280,12 @@ controlServerThread(void *unused)
 		switch (ich)
 		{
 		case 'q':
-			RTMP_LogPrintf("Exiting\n");
+			RTMPGwLog(RTMP_LOGINFO, "Exiting\n");
 			stopStreaming(httpServer);
 			exit(0);
 			break;
 		default:
-			RTMP_LogPrintf("Unknown command \'%c\', ignoring\n", ich);
+			RTMPGwLog(RTMP_LOGINFO, "Unknown command \'%c\', ignoring\n", ich);
 		}
 	}
 	TFRET();
@@ -634,9 +634,9 @@ void processTCPrequest(STREAMING_SERVER * server,	// server socket and state (ou
 			&& RTMP_IsConnected(&rtmp) && nWritten >= 0);
 	}
 cleanup:
-	RTMP_LogPrintf("Closing connection... ");
+	RTMPGwLog(RTMP_LOGINFO, "Closing connection... ");
 	RTMP_Close(&rtmp);
-	RTMP_LogPrintf("done!\n\n");
+	RTMPGwLog(RTMP_LOGINFO, "done!\n\n");
 
 quit:
 	if (buffer)

@@ -105,7 +105,7 @@ int publish_using_packet() {
     FILE*fp = NULL;
     fp = fopen(FLV_FILE, "rb");
     if (!fp) {
-        RTMP_LogPrintf("Open File Error.\n");
+        RTMPPubLog(RTMP_LOGERROR, "Open File Error.\n");
         CleanupSockets();
         return -1;
     }
@@ -158,7 +158,7 @@ int publish_using_packet() {
     packet->m_nChannel = 0x04;
     packet->m_nInfoField2 = rtmp->m_stream_id;
 
-    RTMP_LogPrintf("Start to send data ...\n");
+    RTMPPubLog(RTMP_LOGERROR, "Start to send data ...\n");
 
     //jump over FLV Header
     fseek(fp, 9, SEEK_SET);
@@ -172,7 +172,7 @@ int publish_using_packet() {
             //wait for 1 sec if the send process is too fast
             //this mechanism is not very good,need some improvement
             if (pre_frame_time > lasttime) {
-                RTMP_LogPrintf("TimeStamp:%8lu ms\n", pre_frame_time);
+                RTMPPubLog(RTMP_LOGERROR, "TimeStamp:%8lu ms\n", pre_frame_time);
                 lasttime = pre_frame_time;
             }
             msleep(1);
@@ -234,7 +234,7 @@ int publish_using_packet() {
         }
     }
 
-    RTMP_LogPrintf("\nSend Data Over\n");
+    RTMPPubLog(RTMP_LOGERROR, "\nSend Data Over\n");
 
     if (fp)
         fclose(fp);
@@ -279,7 +279,7 @@ int publish_using_write() {
     FILE*fp = NULL;
     fp = fopen(FLV_FILE, "rb");
     if (!fp) {
-        RTMP_LogPrintf("Open File Error.\n");
+        RTMPPubLog(RTMP_LOGERROR, "Open File Error.\n");
         CleanupSockets();
         return -1;
     }
@@ -324,7 +324,7 @@ int publish_using_write() {
         return -1;
     }
 
-    RTMP_LogPrintf("Start to send data ...\n");
+    RTMPPubLog(RTMP_LOGERROR, "Start to send data ...\n");
 
     //jump over FLV Header
     fseek(fp, 9, SEEK_SET);
@@ -338,7 +338,7 @@ int publish_using_write() {
             //wait for 1 sec if the send process is too fast
             //this mechanism is not very good,need some improvement
             if (pre_frame_time > lasttime) {
-                RTMP_LogPrintf("TimeStamp:%8lu ms\n", pre_frame_time);
+                RTMPPubLog(RTMP_LOGERROR, "TimeStamp:%8lu ms\n", pre_frame_time);
                 lasttime = pre_frame_time;
             }
             msleep(1);
@@ -389,7 +389,7 @@ int publish_using_write() {
         }
     }
 
-    RTMP_LogPrintf("\nSend Data Over\n");
+    RTMPPubLog(RTMP_LOGERROR, "\nSend Data Over\n");
 
     if (fp)
         fclose(fp);

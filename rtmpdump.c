@@ -804,7 +804,7 @@ AVal *sockshost
             if (res != RTMP_SWF_HASHLEN)
             {
                 swfHash.av_val = NULL;
-                RTMP_Log(RTMP_LOGWARNING, "Couldn't parse swf hash hex string, %d bytes, ignoring!",
+                RTMPDmpLog(RTMP_LOGWARNING, "Couldn't parse swf, %d bytes, ignoring!",
                     RTMP_SWF_HASHLEN);
             }
             swfHash.av_len = RTMP_SWF_HASHLEN;
@@ -815,7 +815,7 @@ AVal *sockshost
             int size = atoi(optarg);
             if (size <= 0)
             {
-                RTMP_Log(RTMP_LOGERROR, "SWF Size must be at least 1, ignoring\n");
+                RTMPDmpLog(RTMP_LOGERROR, "SWF Size must be at least 1, ignoring\n");
             }
             else
             {
@@ -832,7 +832,7 @@ AVal *sockshost
             int num = atoi(optarg);
             if (num < 0)
             {
-                RTMP_Log(RTMP_LOGERROR, "SWF Age must be non-negative, ignoring\n");
+                RTMPDmpLog(RTMP_LOGERROR, "SWF Age must be non-negative, ignoring\n");
             }
             else
             {
@@ -845,12 +845,12 @@ AVal *sockshost
             nSkipKeyFrames = atoi(optarg);
             if (nSkipKeyFrames < 0)
             {
-                RTMP_Log(RTMP_LOGERROR, "Number of keyframes skipped must be greater or equal zero!");
+                RTMPDmpLog(RTMP_LOGERROR, "Number of keyframes skipped!");
                 nSkipKeyFrames = 0;
             }
             else
             {
-                RTMP_Log(RTMP_LOGDEBUG, "Number of skipped key frames for resume: %d",
+                RTMPDmpLog(RTMP_LOGDEBUG, "Number of skipped key frames for resume: %d",
                     nSkipKeyFrames);
             }
             break;
@@ -859,7 +859,7 @@ AVal *sockshost
             int32_t bt = atol(optarg);
             if (bt < 0)
             {
-                RTMP_Log(RTMP_LOGERROR, "Buffer time must be greater than zero,value %d!", bt);
+                RTMPDmpLog(RTMP_LOGERROR, "Buffer time must be greater than zero,value %d!", bt);
             }
             else
             {
@@ -887,7 +887,7 @@ AVal *sockshost
             protocol = atoi(optarg);
             if (protocol < RTMP_PROTOCOL_RTMP || protocol > RTMP_PROTOCOL_RTMPTS)
             {
-                RTMP_Log(RTMP_LOGERROR, "Unknown protocol specified: %d", protocol);
+                RTMPDmpLog(RTMP_LOGERROR, "Unknown protocol specified: %d", protocol);
                 return RD_FAILED;
             }
             break;
@@ -906,7 +906,7 @@ AVal *sockshost
             if (!RTMP_ParseURL(optarg, &parsedProtocol, &parsedHost, &parsedPort,
                 &parsedPlaypath, &parsedApp))
             {
-                RTMP_Log(RTMP_LOGWARNING, "Couldn't parse the specified url (%s)!", optarg);
+                RTMPDmpLog(RTMP_LOGWARNING, "Couldn't parse the specified url (%s)!", optarg);
             }
             else
             {
@@ -962,7 +962,7 @@ AVal *sockshost
             STR2AVAL(&av, optarg);
             if (!RTMP_SetOpt(&rtmp, &av_conn, &av))
             {
-                RTMP_Log(RTMP_LOGERROR, "Invalid AMF parameter: %s", optarg);
+                RTMPDmpLog(RTMP_LOGERROR, "Invalid AMF parameter: %s", optarg);
                 return RD_FAILED;
             }
         }
@@ -1013,19 +1013,19 @@ int RTMPCtrlC(RTMP *rtmp, int *nStatus, SeekPos *seekPos, int *bResume, uint32_t
 {
     int retries = 0;
     uint32_t bufferTime = DEF_BUFTIME;
-    RTMP_Log(RTMP_LOGDEBUG, "Setting buffer time to: %dms", bufferTime);
+    RTMPDmpLog(RTMP_LOGDEBUG, "Setting buffer time to: %dms", bufferTime);
     RTMP_SetBufferMS(rtmp, bufferTime);
     *nInitialFrameSize = 0;
     if (retries)
     {
-        RTMP_Log(RTMP_LOGERROR, "Failed to resume the stream\n\n");
+        RTMPDmpLog(RTMP_LOGERROR, "Failed to resume the stream\n\n");
         if (!RTMP_IsTimedout(rtmp))
             *nStatus = RD_FAILED;
         else
             *nStatus = RD_INCOMPLETE;
 		return -1;
     }
-    RTMP_Log(RTMP_LOGINFO, "Connection timed out, trying to resume.\n\n");
+    RTMPDmpLog(RTMP_LOGINFO, "Connection timed out, trying to resume.\n\n");
     /* Did we already try pausing, and it still didn't work? */
     if (rtmp->m_pausing == 3)
     {
@@ -1043,7 +1043,7 @@ int RTMPCtrlC(RTMP *rtmp, int *nStatus, SeekPos *seekPos, int *bResume, uint32_t
         }
         if (!RTMP_ReconnectStream(rtmp, dSeek))
         {
-            RTMP_Log(RTMP_LOGERROR, "Failed to resume the stream\n\n");
+            RTMPDmpLog(RTMP_LOGERROR, "Failed to resume the stream\n\n");
             if (!RTMP_IsTimedout(rtmp))
                 *nStatus = RD_FAILED;
             else
@@ -1053,7 +1053,7 @@ int RTMPCtrlC(RTMP *rtmp, int *nStatus, SeekPos *seekPos, int *bResume, uint32_t
     }
     else if (!RTMP_ToggleStream(rtmp))
     {
-        RTMP_Log(RTMP_LOGERROR, "Failed to resume the stream\n\n");
+        RTMPDmpLog(RTMP_LOGERROR, "Failed to resume the stream\n\n");
         if (!RTMP_IsTimedout(rtmp))
             *nStatus = RD_FAILED;
         else

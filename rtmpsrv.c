@@ -911,12 +911,12 @@ controlServerThread(void *unused)
         switch (ich)
         {
         case 'q':
-            RTMP_LogPrintf("Exiting\n");
+            RTMPSrvLog(RTMP_LOGINFO, "Exiting\n");
             stopStreaming(rtmpServer);
             exit(0);
             break;
         default:
-            RTMP_LogPrintf("Unknown command \'%c\', ignoring\n", ich);
+            RTMPSrvLog(RTMP_LOGINFO, "Unknown command \'%c\', ignoring\n", ich);
         }
     }
     TFRET();
@@ -985,7 +985,7 @@ void doServe(STREAMING_SERVER * server, // server socket and state (our listenin
     }
 
 cleanup:
-    RTMP_LogPrintf("Closing connection... ");
+    RTMPSrvLog(RTMP_LOGINFO, "Closing connection... ");
     RTMP_Close(rtmp);
     /* Should probably be done by RTMP_Close() ... */
     rtmp->Link.playpath.av_val = NULL;
@@ -1000,7 +1000,7 @@ cleanup:
         rtmp->Link.usherToken.av_val = NULL;
     }
     RTMP_Free(rtmp);
-    RTMP_LogPrintf("done!\n\n");
+    RTMPSrvLog(RTMP_LOGINFO, "done!\n\n");
 
 quit:
     if (server->state == STREAMING_IN_PROGRESS)

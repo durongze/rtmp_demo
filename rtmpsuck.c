@@ -729,6 +729,74 @@ controlServerThread(void *unused)
 	TFRET();
 }
 
+int doServeProcReadPacketSr(RTMPPacket * ps,STREAMING_SERVER * server)
+{
+    while (RTMP_ReadPacket(&server->rs, &ps))
+	if (RTMPPacket_IsReady(ps))
+	{
+		/* change chunk size */
+		if (ps->m_packetType == RTMP_PACKET_TYPE_CHUNK_SIZE)
+		{
+			if (ps->m_nBodySize >= 4)
+			{
+				server->rs.m_inChunkSize = AMF_DecodeInt32(ps->m_body);
+				RTMPSuckLog(RTMP_LOGDEBUG, "client: chunk size change to %d",
+					server->rs.m_inChunkSize);
+				server->rc.m_outChunkSize = server->rs.m_inChunkSize;
+			}
+		}
+		/* bytes received */
+		else if (ps->m_packetType == RTMP_PACKET_TYPE_BYTES_READ_REPORT)
+		{
+			if (ps->m_nBodySize >= 4)
+			{
+				int count = AMF_DecodeInt32(ps->m_body);
+				RTMPSuckLog(RTMP_LOGDEBUG, "client: bytes received = %d",
+					count);
+			}
+		}
+		/* ctrl */
+		else if (ps->m_packetType == RTMP_PACKET_TYPE_CONTROL)
+		{
+			short nType = AMF_DecodeInt16(ps->m_body);
+			/* UpdateBufferMS */
+			if (nType == 0x03)
+			{
+				char *ptr = ps->m_body + 2;
+				int id;
+				int len;
+				id = AMF_DecodeInt32(ptr);
+				/* Assume the interesting media is on a non-zero stream */
+				if (id)
+				{
+					len = AMF_DecodeInt32(ptr + 4);
+#if 1
+					/* request a big buffer */
+					if (len < BUFFERTIME)
+					{
+						AMF_EncodeInt32(ptr + 4, ptr + 8, BUFFERTIME);
+					}
+#endif
+					RTMPSuckLog(RTMP_LOGDEBUG, "client: BufferTime change in stream %d to %d",
+						id, len);
+				}
+			}
+		}
+		else if (ps->m_packetType == RTMP_PACKET_TYPE_FLEX_MESSAGE
+			|| ps->m_packetType == RTMP_PACKET_TYPE_INVOKE)
+		{
+			if (ServePacket(server, 0, &ps) && server->f_cur)
+			{
+				fclose(server->f_cur->f_file);
+				server->f_cur->f_file = NULL;
+				server->f_cur = NULL;
+			}
+		}
+		RTMP_SendPacket(&server->rc, &ps, FALSE);
+		RTMPPacket_Free(&ps);
+		break;
+	}
+}    
 int doServeProcReadPacket(RTMPPacket *pc, STREAMING_SERVER *server,
     int *paused, char **buf, // target pointer, maybe preallocated
 	unsigned int *buflen, RTMPChunk* rk)
@@ -908,73 +976,9 @@ TFTYPE doServe(void *arg)	// server socket and state (our listening socket)
 				cr = 1;
 		}
 		if (sr)
-		{
-			while (RTMP_ReadPacket(&server->rs, &ps))
-				if (RTMPPacket_IsReady(&ps))
-				{
-					/* change chunk size */
-					if (ps.m_packetType == RTMP_PACKET_TYPE_CHUNK_SIZE)
-					{
-						if (ps.m_nBodySize >= 4)
-						{
-							server->rs.m_inChunkSize = AMF_DecodeInt32(ps.m_body);
-							RTMPSuckLog(RTMP_LOGDEBUG, "client: chunk size change to %d",
-								server->rs.m_inChunkSize);
-							server->rc.m_outChunkSize = server->rs.m_inChunkSize;
-						}
-					}
-					/* bytes received */
-					else if (ps.m_packetType == RTMP_PACKET_TYPE_BYTES_READ_REPORT)
-					{
-						if (ps.m_nBodySize >= 4)
-						{
-							int count = AMF_DecodeInt32(ps.m_body);
-							RTMPSuckLog(RTMP_LOGDEBUG, "client: bytes received = %d",
-								count);
-						}
-					}
-					/* ctrl */
-					else if (ps.m_packetType == RTMP_PACKET_TYPE_CONTROL)
-					{
-						short nType = AMF_DecodeInt16(ps.m_body);
-						/* UpdateBufferMS */
-						if (nType == 0x03)
-						{
-							char *ptr = ps.m_body + 2;
-							int id;
-							int len;
-							id = AMF_DecodeInt32(ptr);
-							/* Assume the interesting media is on a non-zero stream */
-							if (id)
-							{
-								len = AMF_DecodeInt32(ptr + 4);
-#if 1
-								/* request a big buffer */
-								if (len < BUFFERTIME)
-								{
-									AMF_EncodeInt32(ptr + 4, ptr + 8, BUFFERTIME);
-								}
-#endif
-								RTMPSuckLog(RTMP_LOGDEBUG, "client: BufferTime change in stream %d to %d",
-									id, len);
-							}
-						}
-					}
-					else if (ps.m_packetType == RTMP_PACKET_TYPE_FLEX_MESSAGE
-						|| ps.m_packetType == RTMP_PACKET_TYPE_INVOKE)
-					{
-						if (ServePacket(server, 0, &ps) && server->f_cur)
-						{
-							fclose(server->f_cur->f_file);
-							server->f_cur->f_file = NULL;
-							server->f_cur = NULL;
-						}
-					}
-					RTMP_SendPacket(&server->rc, &ps, FALSE);
-					RTMPPacket_Free(&ps);
-					break;
-				}
-		}
+        {
+			doServeProcReadPacketSr(&ps, server);
+        }      
 		if (cr)
 		{
 			if (doServeProcReadPacket(&pc, server, &paused, &buf, &buflen, &rk) != 0)

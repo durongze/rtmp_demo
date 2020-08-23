@@ -2897,6 +2897,214 @@ static const AVal av_NetStream_Publish_Start = AVC("NetStream.Publish.Start");
 static const AVal av_NetConnection_Connect_Rejected =
 AVC("NetConnection.Connect.Rejected");
 
+static int
+HandleInvokeResult(RTMP *r, AMFObject *obj, double txn)
+{
+	AVal methodInvoked = { 0 };
+	int i;
+	
+	for (i = 0; i < r->m_numCalls; i++) {
+		if (r->m_methodCalls[i].num == (int)txn) {
+			methodInvoked = r->m_methodCalls[i].name;
+			AV_erase(r->m_methodCalls, &r->m_numCalls, i, FALSE);
+			break;
+		}
+	}
+	if (!methodInvoked.av_val) {
+		RTMPLibLog(RTMP_LOGDEBUG, "received result id %f without matching request",	txn);
+		return 1;
+	}
+	
+	RTMPLibLog(RTMP_LOGDEBUG, "received result for method call <%s>",
+		methodInvoked.av_val);
+	
+	if (AVMATCH(&methodInvoked, &av_connect))
+	{
+		if (r->Link.token.av_len)
+		{
+			AMFObjectProperty p;
+			if (RTMP_FindFirstMatchingProperty(&obj, &av_secureToken, &p))
+			{
+				DecodeTEA(&r->Link.token, &p.p_vu.p_aval);
+				SendSecureTokenResponse(r, &p.p_vu.p_aval);
+			}
+		}
+		if (r->Link.protocol & RTMP_FEATURE_WRITE)
+		{
+			SendReleaseStream(r);
+			SendFCPublish(r);
+		}
+		else
+		{
+			RTMP_SendServerBW(r);
+			RTMP_SendCtrl(r, 3, 0, 300);
+		}
+		RTMP_SendCreateStream(r);
+	
+		if (!(r->Link.protocol & RTMP_FEATURE_WRITE))
+		{
+			/* Authenticate on Justin.tv legacy servers before sending FCSubscribe */
+			if (r->Link.usherToken.av_len)
+				SendUsherToken(r, &r->Link.usherToken);
+			/* Send the FCSubscribe if live stream or if subscribepath is set */
+			if (r->Link.subscribepath.av_len)
+				SendFCSubscribe(r, &r->Link.subscribepath);
+			else if (r->Link.lFlags & RTMP_LF_LIVE)
+				SendFCSubscribe(r, &r->Link.playpath);
+		}
+	}
+	else if (AVMATCH(&methodInvoked, &av_createStream))
+	{
+		r->m_stream_id = (int)AMFProp_GetNumber(AMF_GetProp(&obj, NULL, 3));
+	
+		if (r->Link.protocol & RTMP_FEATURE_WRITE)
+		{
+			SendPublish(r);
+		}
+		else
+		{
+			if (r->Link.lFlags & RTMP_LF_PLST)
+				SendPlaylist(r);
+			SendPlay(r);
+			RTMP_SendCtrl(r, 3, r->m_stream_id, r->m_nBufferMS);
+		}
+	}
+	else if (AVMATCH(&methodInvoked, &av_play) ||
+		AVMATCH(&methodInvoked, &av_publish))
+	{
+		r->m_bPlaying = TRUE;
+	}
+	free(methodInvoked.av_val);
+	return 0;
+}
+
+static int
+HandleInvokeCrypto(RTMP *r, AMFObject *obj, double txn)
+{
+	AVal methodInvoked = { 0 };
+	int i;
+
+	if (r->Link.protocol & RTMP_FEATURE_WRITE)
+	{
+		for (i = 0; i < r->m_numCalls; i++)
+		{
+			if (r->m_methodCalls[i].num == txn)
+			{
+				methodInvoked = r->m_methodCalls[i].name;
+				AV_erase(r->m_methodCalls, &r->m_numCalls, i, FALSE);
+				break;
+			}
+		}
+		if (!methodInvoked.av_val)
+		{
+			RTMPLibLog(RTMP_LOGDEBUG, "received result id %f without matching request",	txn);
+			return 1;
+		}
+
+		RTMPLibLog(RTMP_LOGDEBUG, "received error for method call <%s>", methodInvoked.av_val);
+
+		if (AVMATCH(&methodInvoked, &av_connect))
+		{
+			AMFObject obj2;
+			AVal code, level, description;
+			AMFProp_GetObject(AMF_GetProp(&obj, NULL, 3), &obj2);
+			AMFProp_GetString(AMF_GetProp(&obj2, &av_code, -1), &code);
+			AMFProp_GetString(AMF_GetProp(&obj2, &av_level, -1), &level);
+			AMFProp_GetString(AMF_GetProp(&obj2, &av_description, -1), &description);
+			RTMPLibLog(RTMP_LOGDEBUG, "error description: %s", description.av_val);
+			/* if PublisherAuth returns 1, then reconnect */
+			if (PublisherAuth(r, &description) == 1)
+			{
+				CloseInternal(r, 1);
+				if (!RTMP_Connect(r, NULL) || !RTMP_ConnectStream(r, 0)) {
+					return 1;
+				}
+			}
+		}
+	}
+	else
+	{
+		RTMPLibLog(RTMP_LOGERROR, "rtmp server sent error");
+	}
+	free(methodInvoked.av_val);
+	return 0;
+}
+
+static int
+HandleInvokeStatus(RTMP *r, AMFObject *obj)
+{
+	int ret = 0;
+	AMFObject obj2;
+	AVal code, level;
+	AMFProp_GetObject(AMF_GetProp(&obj, NULL, 3), &obj2);
+	AMFProp_GetString(AMF_GetProp(&obj2, &av_code, -1), &code);
+	AMFProp_GetString(AMF_GetProp(&obj2, &av_level, -1), &level);
+
+	RTMPLibLog(RTMP_LOGDEBUG, "onStatus: %s", code.av_val);
+	if (AVMATCH(&code, &av_NetStream_Failed)
+		|| AVMATCH(&code, &av_NetStream_Play_Failed)
+		|| AVMATCH(&code, &av_NetStream_Play_StreamNotFound)
+		|| AVMATCH(&code, &av_NetConnection_Connect_InvalidApp))
+	{
+		r->m_stream_id = -1;
+		RTMP_Close(r);
+		RTMPLibLog(RTMP_LOGERROR, "Closing connection: %s", code.av_val);
+	}
+
+	else if (AVMATCH(&code, &av_NetStream_Play_Start)
+		|| AVMATCH(&code, &av_NetStream_Play_PublishNotify))
+	{
+		int i;
+		r->m_bPlaying = TRUE;
+		for (i = 0; i < r->m_numCalls; i++)
+		{
+			if (AVMATCH(&r->m_methodCalls[i].name, &av_play))
+			{
+				AV_erase(r->m_methodCalls, &r->m_numCalls, i, TRUE);
+				break;
+			}
+		}
+	}
+
+	else if (AVMATCH(&code, &av_NetStream_Publish_Start))
+	{
+		int i;
+		r->m_bPlaying = TRUE;
+		for (i = 0; i < r->m_numCalls; i++)
+		{
+			if (AVMATCH(&r->m_methodCalls[i].name, &av_publish))
+			{
+				AV_erase(r->m_methodCalls, &r->m_numCalls, i, TRUE);
+				break;
+			}
+		}
+	}
+
+	/* Return 1 if this is a Play.Complete or Play.Stop */
+	else if (AVMATCH(&code, &av_NetStream_Play_Complete)
+		|| AVMATCH(&code, &av_NetStream_Play_Stop)
+		|| AVMATCH(&code, &av_NetStream_Play_UnpublishNotify))
+	{
+		RTMP_Close(r);
+		ret = 1;
+	}
+
+	else if (AVMATCH(&code, &av_NetStream_Seek_Notify))
+	{
+		r->m_read.flags &= ~RTMP_READ_SEEKING;
+	}
+
+	else if (AVMATCH(&code, &av_NetStream_Pause_Notify))
+	{
+		if (r->m_pausing == 1 || r->m_pausing == 2)
+		{
+			RTMP_SendPause(r, FALSE, r->m_pauseStamp);
+			r->m_pausing = 3;
+		}
+	}
+	return ret;
+}
+
 /* Returns 0 for OK/Failed/error, 1 for 'Stop or Complete' */
 static int
 HandleInvoke(RTMP *r, const char *body, unsigned int nBodySize)
@@ -2925,82 +3133,9 @@ HandleInvoke(RTMP *r, const char *body, unsigned int nBodySize)
 
     if (AVMATCH(&method, &av__result))
     {
-        AVal methodInvoked = { 0 };
-        int i;
-
-        for (i = 0; i < r->m_numCalls; i++) {
-            if (r->m_methodCalls[i].num == (int)txn) {
-                methodInvoked = r->m_methodCalls[i].name;
-                AV_erase(r->m_methodCalls, &r->m_numCalls, i, FALSE);
-                break;
-            }
-        }
-        if (!methodInvoked.av_val) {
-            RTMPLibLog(RTMP_LOGDEBUG, "received result id %f without matching request",
-                txn);
-            goto leave;
-        }
-
-        RTMPLibLog(RTMP_LOGDEBUG, "received result for method call <%s>",
-            methodInvoked.av_val);
-
-        if (AVMATCH(&methodInvoked, &av_connect))
-        {
-            if (r->Link.token.av_len)
-            {
-                AMFObjectProperty p;
-                if (RTMP_FindFirstMatchingProperty(&obj, &av_secureToken, &p))
-                {
-                    DecodeTEA(&r->Link.token, &p.p_vu.p_aval);
-                    SendSecureTokenResponse(r, &p.p_vu.p_aval);
-                }
-            }
-            if (r->Link.protocol & RTMP_FEATURE_WRITE)
-            {
-                SendReleaseStream(r);
-                SendFCPublish(r);
-            }
-            else
-            {
-                RTMP_SendServerBW(r);
-                RTMP_SendCtrl(r, 3, 0, 300);
-            }
-            RTMP_SendCreateStream(r);
-
-            if (!(r->Link.protocol & RTMP_FEATURE_WRITE))
-            {
-                /* Authenticate on Justin.tv legacy servers before sending FCSubscribe */
-                if (r->Link.usherToken.av_len)
-                    SendUsherToken(r, &r->Link.usherToken);
-                /* Send the FCSubscribe if live stream or if subscribepath is set */
-                if (r->Link.subscribepath.av_len)
-                    SendFCSubscribe(r, &r->Link.subscribepath);
-                else if (r->Link.lFlags & RTMP_LF_LIVE)
-                    SendFCSubscribe(r, &r->Link.playpath);
-            }
-        }
-        else if (AVMATCH(&methodInvoked, &av_createStream))
-        {
-            r->m_stream_id = (int)AMFProp_GetNumber(AMF_GetProp(&obj, NULL, 3));
-
-            if (r->Link.protocol & RTMP_FEATURE_WRITE)
-            {
-                SendPublish(r);
-            }
-            else
-            {
-                if (r->Link.lFlags & RTMP_LF_PLST)
-                    SendPlaylist(r);
-                SendPlay(r);
-                RTMP_SendCtrl(r, 3, r->m_stream_id, r->m_nBufferMS);
-            }
-        }
-        else if (AVMATCH(&methodInvoked, &av_play) ||
-            AVMATCH(&methodInvoked, &av_publish))
-        {
-            r->m_bPlaying = TRUE;
-        }
-        free(methodInvoked.av_val);
+		if (HandleInvokeResult(r, &obj, txn) != 0){
+			goto leave;
+		}
     }
     else if (AVMATCH(&method, &av_onBWDone))
     {
@@ -3037,53 +3172,9 @@ HandleInvoke(RTMP *r, const char *body, unsigned int nBodySize)
     else if (AVMATCH(&method, &av__error))
     {
 #ifdef CRYPTO
-        AVal methodInvoked = { 0 };
-        int i;
-
-        if (r->Link.protocol & RTMP_FEATURE_WRITE)
-        {
-            for (i = 0; i < r->m_numCalls; i++)
-            {
-                if (r->m_methodCalls[i].num == txn)
-                {
-                    methodInvoked = r->m_methodCalls[i].name;
-                    AV_erase(r->m_methodCalls, &r->m_numCalls, i, FALSE);
-                    break;
-                }
-            }
-            if (!methodInvoked.av_val)
-            {
-                RTMPLibLog(RTMP_LOGDEBUG, "received result id %f without matching request",
-                    txn);
-                goto leave;
-            }
-
-            RTMPLibLog(RTMP_LOGDEBUG, "received error for method call <%s>",
-                methodInvoked.av_val);
-
-            if (AVMATCH(&methodInvoked, &av_connect))
-            {
-                AMFObject obj2;
-                AVal code, level, description;
-                AMFProp_GetObject(AMF_GetProp(&obj, NULL, 3), &obj2);
-                AMFProp_GetString(AMF_GetProp(&obj2, &av_code, -1), &code);
-                AMFProp_GetString(AMF_GetProp(&obj2, &av_level, -1), &level);
-                AMFProp_GetString(AMF_GetProp(&obj2, &av_description, -1), &description);
-                RTMPLibLog(RTMP_LOGDEBUG, "error description: %s", description.av_val);
-                /* if PublisherAuth returns 1, then reconnect */
-                if (PublisherAuth(r, &description) == 1)
-                {
-                    CloseInternal(r, 1);
-                    if (!RTMP_Connect(r, NULL) || !RTMP_ConnectStream(r, 0))
-                        goto leave;
-                }
-            }
-        }
-        else
-        {
-            RTMPLibLog(RTMP_LOGERROR, "rtmp server sent error");
-        }
-        free(methodInvoked.av_val);
+		if (HandleInvokeCrypto(r, &obj, txn) != 0) {
+			goto leave;
+		}
 #else
         RTMPLibLog(RTMP_LOGERROR, "rtmp server sent error");
 #endif
@@ -3095,74 +3186,9 @@ HandleInvoke(RTMP *r, const char *body, unsigned int nBodySize)
     }
     else if (AVMATCH(&method, &av_onStatus))
     {
-        AMFObject obj2;
-        AVal code, level;
-        AMFProp_GetObject(AMF_GetProp(&obj, NULL, 3), &obj2);
-        AMFProp_GetString(AMF_GetProp(&obj2, &av_code, -1), &code);
-        AMFProp_GetString(AMF_GetProp(&obj2, &av_level, -1), &level);
-
-        RTMPLibLog(RTMP_LOGDEBUG, "onStatus: %s", code.av_val);
-        if (AVMATCH(&code, &av_NetStream_Failed)
-            || AVMATCH(&code, &av_NetStream_Play_Failed)
-            || AVMATCH(&code, &av_NetStream_Play_StreamNotFound)
-            || AVMATCH(&code, &av_NetConnection_Connect_InvalidApp))
-        {
-            r->m_stream_id = -1;
-            RTMP_Close(r);
-            RTMPLibLog(RTMP_LOGERROR, "Closing connection: %s", code.av_val);
-        }
-
-        else if (AVMATCH(&code, &av_NetStream_Play_Start)
-            || AVMATCH(&code, &av_NetStream_Play_PublishNotify))
-        {
-            int i;
-            r->m_bPlaying = TRUE;
-            for (i = 0; i < r->m_numCalls; i++)
-            {
-                if (AVMATCH(&r->m_methodCalls[i].name, &av_play))
-                {
-                    AV_erase(r->m_methodCalls, &r->m_numCalls, i, TRUE);
-                    break;
-                }
-            }
-        }
-
-        else if (AVMATCH(&code, &av_NetStream_Publish_Start))
-        {
-            int i;
-            r->m_bPlaying = TRUE;
-            for (i = 0; i < r->m_numCalls; i++)
-            {
-                if (AVMATCH(&r->m_methodCalls[i].name, &av_publish))
-                {
-                    AV_erase(r->m_methodCalls, &r->m_numCalls, i, TRUE);
-                    break;
-                }
-            }
-        }
-
-        /* Return 1 if this is a Play.Complete or Play.Stop */
-        else if (AVMATCH(&code, &av_NetStream_Play_Complete)
-            || AVMATCH(&code, &av_NetStream_Play_Stop)
-            || AVMATCH(&code, &av_NetStream_Play_UnpublishNotify))
-        {
-            RTMP_Close(r);
-            ret = 1;
-        }
-
-        else if (AVMATCH(&code, &av_NetStream_Seek_Notify))
-        {
-            r->m_read.flags &= ~RTMP_READ_SEEKING;
-        }
-
-        else if (AVMATCH(&code, &av_NetStream_Pause_Notify))
-        {
-            if (r->m_pausing == 1 || r->m_pausing == 2)
-            {
-                RTMP_SendPause(r, FALSE, r->m_pauseStamp);
-                r->m_pausing = 3;
-            }
-        }
+		if (HandleInvokeStatus(r, &obj) != 0) {
+			ret = 1;
+		}
     }
     else if (AVMATCH(&method, &av_playlist_ready))
     {
@@ -3593,6 +3619,60 @@ EncodeInt32LE(char *output, int nVal)
 }
 
 int
+RTMP_ReadPacketChannel(RTMP *r, RTMPPacket *packet, char **header)
+{
+	char *hbuf = header;
+	(*header)++;
+	if (packet->m_nChannel == 0)
+	  {
+		  if (ReadN(r, (char *)&hbuf[1], 1) != 1)
+		  {
+			  RTMPLibLog(RTMP_LOGERROR, "failed to read RTMP packet header 2nd byte");
+			  return FALSE;
+		  }
+		  packet->m_nChannel = hbuf[1];
+		  packet->m_nChannel += 64;
+		  (*header)++;
+	  }
+	  else if (packet->m_nChannel == 1)
+	  {
+		  int tmp;
+		  if (ReadN(r, (char *)&hbuf[1], 2) != 2)
+		  {
+			  RTMPLibLog(RTMP_LOGERROR, "failed to read RTMP packet header 3nd byte");
+			  return FALSE;
+		  }
+		  tmp = (hbuf[2] << 8) + hbuf[1];
+		  packet->m_nChannel = tmp + 64;
+		  RTMPLibLog(RTMP_LOGDEBUG, "m_nChannel: %0x", packet->m_nChannel);
+		  (*header) += 2;
+	  }
+	
+	  // nSize = packetSize[packet->m_headerType];
+	
+	  if (packet->m_nChannel >= r->m_channelsAllocatedIn)
+	  {
+		  int n = packet->m_nChannel + 10;
+		  int *timestamp = realloc(r->m_channelTimestamp, sizeof(int) * n);
+		  RTMPPacket **packets = realloc(r->m_vecChannelsIn, sizeof(RTMPPacket*) * n);
+		  if (!timestamp)
+			  free(r->m_channelTimestamp);
+		  if (!packets)
+			  free(r->m_vecChannelsIn);
+		  r->m_channelTimestamp = timestamp;
+		  r->m_vecChannelsIn = packets;
+		  if (!timestamp || !packets) {
+			  r->m_channelsAllocatedIn = 0;
+			  return FALSE;
+		  }
+		  memset(r->m_channelTimestamp + r->m_channelsAllocatedIn, 0, sizeof(int) * (n - r->m_channelsAllocatedIn));
+		  memset(r->m_vecChannelsIn + r->m_channelsAllocatedIn, 0, sizeof(RTMPPacket*) * (n - r->m_channelsAllocatedIn));
+		  r->m_channelsAllocatedIn = n;
+	  }
+	  return TRUE;
+}
+
+int
 RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
 {
     uint8_t hbuf[RTMP_MAX_HEADER_SIZE] = { 0 };
@@ -3611,54 +3691,11 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
 
     packet->m_headerType = (hbuf[0] & 0xc0) >> 6;
     packet->m_nChannel = (hbuf[0] & 0x3f);
-    header++;
-    if (packet->m_nChannel == 0)
-    {
-        if (ReadN(r, (char *)&hbuf[1], 1) != 1)
-        {
-            RTMPLibLog(RTMP_LOGERROR, "failed to read RTMP packet header 2nd byte");
-            return FALSE;
-        }
-        packet->m_nChannel = hbuf[1];
-        packet->m_nChannel += 64;
-        header++;
-    }
-    else if (packet->m_nChannel == 1)
-    {
-        int tmp;
-        if (ReadN(r, (char *)&hbuf[1], 2) != 2)
-        {
-            RTMPLibLog(RTMP_LOGERROR, "failed to read RTMP packet header 3nd byte");
-            return FALSE;
-        }
-        tmp = (hbuf[2] << 8) + hbuf[1];
-        packet->m_nChannel = tmp + 64;
-        RTMPLibLog(RTMP_LOGDEBUG, "m_nChannel: %0x", packet->m_nChannel);
-        header += 2;
-    }
-
-    nSize = packetSize[packet->m_headerType];
-
-    if (packet->m_nChannel >= r->m_channelsAllocatedIn)
-    {
-        int n = packet->m_nChannel + 10;
-        int *timestamp = realloc(r->m_channelTimestamp, sizeof(int) * n);
-        RTMPPacket **packets = realloc(r->m_vecChannelsIn, sizeof(RTMPPacket*) * n);
-        if (!timestamp)
-            free(r->m_channelTimestamp);
-        if (!packets)
-            free(r->m_vecChannelsIn);
-        r->m_channelTimestamp = timestamp;
-        r->m_vecChannelsIn = packets;
-        if (!timestamp || !packets) {
-            r->m_channelsAllocatedIn = 0;
-            return FALSE;
-        }
-        memset(r->m_channelTimestamp + r->m_channelsAllocatedIn, 0, sizeof(int) * (n - r->m_channelsAllocatedIn));
-        memset(r->m_vecChannelsIn + r->m_channelsAllocatedIn, 0, sizeof(RTMPPacket*) * (n - r->m_channelsAllocatedIn));
-        r->m_channelsAllocatedIn = n;
-    }
-
+  
+	if (RTMP_ReadPacketChannel(r, packet, &header) != TRUE) {
+		return FALSE;
+	}
+	nSize = packetSize[packet->m_headerType];
     if (nSize == RTMP_LARGE_HEADER_SIZE)    /* if we get a full header the timestamp is absolute */
         packet->m_hasAbsTimestamp = TRUE;
 
@@ -5058,6 +5095,53 @@ static const char flvHeader[] = { 'F', 'L', 'V', 0x01,
 };
 
 #define HEADERBUF   (128*1024)
+
+int
+RTMP_ReadHeader(RTMP *r)
+{
+	int nRead = 0;
+	char *mybuf = malloc(HEADERBUF), *end = mybuf + HEADERBUF;
+	int cnt = 0;
+	r->m_read.buf = mybuf;
+	r->m_read.buflen = HEADERBUF;
+
+	memcpy(mybuf, flvHeader, sizeof(flvHeader));
+	r->m_read.buf += sizeof(flvHeader);
+	r->m_read.buflen -= sizeof(flvHeader);
+	cnt += sizeof(flvHeader);
+
+	while (r->m_read.timestamp == 0)
+	{
+		nRead = Read_1_Packet(r, r->m_read.buf, r->m_read.buflen);
+		if (nRead < 0)
+		{
+			free(mybuf);
+			r->m_read.buf = NULL;
+			r->m_read.buflen = 0;
+			r->m_read.status = nRead;
+			return 1;
+		}
+		/* buffer overflow, fix buffer and give up */
+		if (r->m_read.buf < mybuf || r->m_read.buf > end) {
+			mybuf = realloc(mybuf, cnt + nRead);
+			memcpy(mybuf + cnt, r->m_read.buf, nRead);
+			free(r->m_read.buf);
+			r->m_read.buf = mybuf + cnt + nRead;
+			break;
+		}
+		cnt += nRead;
+		r->m_read.buf += nRead;
+		r->m_read.buflen -= nRead;
+		if (r->m_read.dataType == 5)
+			break;
+	}
+	mybuf[4] = r->m_read.dataType;
+	r->m_read.buflen = r->m_read.buf - mybuf;
+	r->m_read.buf = mybuf;
+	r->m_read.bufpos = mybuf;
+			
+	return 0;
+}
 int
 RTMP_Read(RTMP *r, char *buf, int size)
 {
@@ -5081,45 +5165,9 @@ fail:
     {
         if (!(r->m_read.flags & RTMP_READ_RESUME))
         {
-            char *mybuf = malloc(HEADERBUF), *end = mybuf + HEADERBUF;
-            int cnt = 0;
-            r->m_read.buf = mybuf;
-            r->m_read.buflen = HEADERBUF;
-
-            memcpy(mybuf, flvHeader, sizeof(flvHeader));
-            r->m_read.buf += sizeof(flvHeader);
-            r->m_read.buflen -= sizeof(flvHeader);
-            cnt += sizeof(flvHeader);
-
-            while (r->m_read.timestamp == 0)
-            {
-                nRead = Read_1_Packet(r, r->m_read.buf, r->m_read.buflen);
-                if (nRead < 0)
-                {
-                    free(mybuf);
-                    r->m_read.buf = NULL;
-                    r->m_read.buflen = 0;
-                    r->m_read.status = nRead;
-                    goto fail;
-                }
-                /* buffer overflow, fix buffer and give up */
-                if (r->m_read.buf < mybuf || r->m_read.buf > end) {
-                    mybuf = realloc(mybuf, cnt + nRead);
-                    memcpy(mybuf + cnt, r->m_read.buf, nRead);
-                    free(r->m_read.buf);
-                    r->m_read.buf = mybuf + cnt + nRead;
-                    break;
-                }
-                cnt += nRead;
-                r->m_read.buf += nRead;
-                r->m_read.buflen -= nRead;
-                if (r->m_read.dataType == 5)
-                    break;
-            }
-            mybuf[4] = r->m_read.dataType;
-            r->m_read.buflen = r->m_read.buf - mybuf;
-            r->m_read.buf = mybuf;
-            r->m_read.bufpos = mybuf;
+			if (RTMP_ReadHeader(r) != 0) {
+				goto fail;
+			}
         }
         r->m_read.flags |= RTMP_READ_HEADER;
     }
@@ -5175,11 +5223,62 @@ fail:
 static const AVal av_setDataFrame = AVC("@setDataFrame");
 
 int
+RTMP_WriteFlv(RTMPPacket *pkt, const char *buf, int size, int *offset, char **enc)
+{
+	*offset = 0;
+	if (size < 11) {
+		/* FLV pkt too small */
+		return 1;
+	}
+
+	if (buf[0] == 'F' && buf[1] == 'L' && buf[2] == 'V')
+	{
+		buf += 13;
+		*offset = 13;
+	}
+
+	pkt->m_packetType = *buf++;
+	pkt->m_nBodySize = AMF_DecodeInt24(buf);
+	buf += 3;
+	pkt->m_nTimeStamp = AMF_DecodeInt24(buf);
+	buf += 3;
+	pkt->m_nTimeStamp |= *buf++ << 24;
+	buf += 3;
+	*offset += 11;
+
+	if (((pkt->m_packetType == RTMP_PACKET_TYPE_AUDIO
+		|| pkt->m_packetType == RTMP_PACKET_TYPE_VIDEO) &&
+		!pkt->m_nTimeStamp) || pkt->m_packetType == RTMP_PACKET_TYPE_INFO)
+	{
+		pkt->m_headerType = RTMP_PACKET_SIZE_LARGE;
+		if (pkt->m_packetType == RTMP_PACKET_TYPE_INFO)
+			pkt->m_nBodySize += 16;
+	}
+	else
+	{
+		pkt->m_headerType = RTMP_PACKET_SIZE_MEDIUM;
+	}
+
+	if (!RTMPPacket_Alloc(pkt, pkt->m_nBodySize))
+	{
+		RTMPLibLog(RTMP_LOGDEBUG, "failed to allocate packet");
+		return 1;
+	}
+
+	if (pkt->m_packetType == RTMP_PACKET_TYPE_INFO)
+	{
+		*enc = AMF_EncodeString(pkt->m_body, pkt->m_body + pkt->m_nBodySize, &av_setDataFrame);
+		pkt->m_nBytesRead = (*enc) - pkt->m_body;
+	}
+	return 0;
+}
+
+int
 RTMP_Write(RTMP *r, const char *buf, int size)
 {
     RTMPPacket *pkt = &r->m_write;
-    char *pend, *enc;
-    int s2 = size, ret, num;
+    char *enc;
+    int s2 = size, ret, num, offset;
 
     pkt->m_nChannel = 0x04; /* source channel */
     pkt->m_nInfoField2 = r->m_stream_id;
@@ -5188,51 +5287,12 @@ RTMP_Write(RTMP *r, const char *buf, int size)
     {
         if (!pkt->m_nBytesRead)
         {
-            if (size < 11) {
-                /* FLV pkt too small */
-                return 0;
-            }
-
-            if (buf[0] == 'F' && buf[1] == 'L' && buf[2] == 'V')
-            {
-                buf += 13;
-                s2 -= 13;
-            }
-
-            pkt->m_packetType = *buf++;
-            pkt->m_nBodySize = AMF_DecodeInt24(buf);
-            buf += 3;
-            pkt->m_nTimeStamp = AMF_DecodeInt24(buf);
-            buf += 3;
-            pkt->m_nTimeStamp |= *buf++ << 24;
-            buf += 3;
-            s2 -= 11;
-
-            if (((pkt->m_packetType == RTMP_PACKET_TYPE_AUDIO
-                || pkt->m_packetType == RTMP_PACKET_TYPE_VIDEO) &&
-                !pkt->m_nTimeStamp) || pkt->m_packetType == RTMP_PACKET_TYPE_INFO)
-            {
-                pkt->m_headerType = RTMP_PACKET_SIZE_LARGE;
-                if (pkt->m_packetType == RTMP_PACKET_TYPE_INFO)
-                    pkt->m_nBodySize += 16;
-            }
-            else
-            {
-                pkt->m_headerType = RTMP_PACKET_SIZE_MEDIUM;
-            }
-
-            if (!RTMPPacket_Alloc(pkt, pkt->m_nBodySize))
-            {
-                RTMPLibLog(RTMP_LOGDEBUG, "failed to allocate packet");
-                return FALSE;
-            }
-            enc = pkt->m_body;
-            pend = enc + pkt->m_nBodySize;
-            if (pkt->m_packetType == RTMP_PACKET_TYPE_INFO)
-            {
-                enc = AMF_EncodeString(enc, pend, &av_setDataFrame);
-                pkt->m_nBytesRead = enc - pkt->m_body;
-            }
+			ret = RTMP_WriteFlv(pkt, buf,  size, &offset, &enc);
+			buf += offset;
+			s2 -= offset;
+			if (ret != 0) {
+				return FALSE;
+			}
         }
         else
         {

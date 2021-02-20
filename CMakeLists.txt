@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.4.1)
 add_subdirectory(librtmp)
 project(rtmpsvr)
 
+message("CMAKE_SOURCE_DIR:${CMAKE_SOURCE_DIR}")
+message("CMAKE_CURRENT_SOURCE_DIR:${CMAKE_CURRENT_SOURCE_DIR}")
+message("CMAKE_BINARY_DIR:${CMAKE_BINARY_DIR}")
+
 add_compile_options(-DNO_CRYPTO)
 
 include_directories( rtmppublish ${CMAKE_CURRENT_SOURCE_DIR}/librtmp/ E:/program/zlib/include/ E:/program/openssl/include/ )

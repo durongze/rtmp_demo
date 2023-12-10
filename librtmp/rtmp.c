@@ -114,14 +114,14 @@ static HandleVideoCallBack g_videoCall = NULL;
 
 void RTMPSetHandleAudioCallBack(HandleAudioCallBack* audioCall)
 {
-    RTMPSrvLog(RTMP_LOGINFO, "audioCall\n");
+    RTMPLibLog(RTMP_LOGINFO, "audioCall\n");
 
     g_audioCall = audioCall;
 }
 
 void RTMPSetHandleVideoCallBack(HandleVideoCallBack* videoCall)
 {
-    RTMPSrvLog(RTMP_LOGINFO, "videoCall\n");
+    RTMPLibLog(RTMP_LOGINFO, "videoCall\n");
 
     g_videoCall = videoCall;
 }
@@ -3375,7 +3375,7 @@ HandleAudio(RTMP *r, const RTMPPacket *packet)
     {
         g_audioCall(r, packet);
     }
-    RTMPSrvLog(RTMP_LOGINFO, "processed request\n");
+    RTMPLibLog(RTMP_LOGINFO, "processed request\n");
 }
 
 void
@@ -3386,7 +3386,7 @@ HandleVideo(RTMP *r, const RTMPPacket *packet)
     {
         g_videoCall(r, packet);
     }
-    RTMPSrvLog(RTMP_LOGINFO, "processed request\n");
+    RTMPLibLog(RTMP_LOGINFO, "processed request\n");
 }
 
 void

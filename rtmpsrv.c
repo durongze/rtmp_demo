@@ -1161,8 +1161,8 @@ main(int argc, char **argv)
 
     RTMP_LogPrintf("RTMP Server %s\n", RTMPDUMP_VERSION);
     RTMP_LogPrintf("(c) 2019/07/12 duyongze; license: GPL\n\n");
-    //RTMP_LogSetCallback(LogCallback);
-    RTMP_LogSetLevel(RTMP_LOGINFO);
+    RTMP_LogSetCallback(LogCallback);
+    RTMP_LogSetLevel(RTMP_LOGTRACE);
     RTMPSetHandleAudioCallBack(SrvHandleAudio);
     RTMPSetHandleVideoCallBack(SrvHandleVideo);
     for (i = 1; i < argc; i++)
